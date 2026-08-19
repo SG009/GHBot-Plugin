@@ -41,6 +41,21 @@ public class WebStatusServer {
     private dev.ghbot.command.CommandLearning commandLearning;
     private java.util.function.Supplier<java.util.Map<String, String>> jsonStats;
 
+    /** v0.21.42 — review-activity feed (Approve/Deny/Export from the 3D viewer) shown in the chat console. */
+    private final java.util.List<String> reviewFeed = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /** v0.21.42 — record a viewer action + echo it to the chat console log. */
+    public void recordReview(String line) {
+        reviewFeed.add(line);
+        while (reviewFeed.size() > 200) reviewFeed.remove(0);
+        if (log != null) log.consoleLog(line);
+    }
+
+    /** v0.21.42 — short HH:mm:ss timestamp for review-feed lines. */
+    private static String ts() {
+        return java.time.LocalTime.now().withNano(0).toString();
+    }
+
     public WebStatusServer(int port, Supplier<Map<String, String>> sysStats,
                            Supplier<List<BotRow>> bots, WIBLogger log) throws IOException {
         this.port = port;
@@ -68,6 +83,34 @@ public class WebStatusServer {
         server.createContext("/api/tools", this::handleApiTools);
         server.createContext("/cmd", this::handleCmd);
         server.createContext("/upload", this::handleUpload);   // v0.21.40 — upload JSON build spec or image
+        server.createContext("/api/events", this::handleApiEvents);   // v0.21.42 — review-activity feed
+    }
+
+    /* ── /api/events?after=<idx> — v0.21.42: review actions (Approve/Deny/Export) that
+     *  happened in the 3D viewer, for the chat console to display. Returns events with
+     *  index >= after plus the next cursor. ── */
+    private void handleApiEvents(HttpExchange ex) throws IOException {
+        int after = 0;
+        String query = ex.getRequestURI().getQuery();
+        if (query != null) {
+            for (String kv : query.split("&")) {
+                String[] p = kv.split("=", 2);
+                if (p.length == 2 && p[0].equals("after")) {
+                    try { after = Integer.parseInt(p[1]); } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+        if (after < 0) after = 0;
+        int size = reviewFeed.size();
+        StringBuilder sb = new StringBuilder("{\"next\":").append(size).append(",\"events\":[");
+        boolean first = true;
+        for (int i = Math.max(after, 0); i < size; i++) {
+            if (!first) sb.append(',');
+            first = false;
+            sb.append("\"").append(escJson(reviewFeed.get(i))).append("\"");
+        }
+        sb.append("]}");
+        respond(ex, 200, sb.toString(), "application/json; charset=utf-8");
     }
 
     /* ── /upload — v0.21.40: upload a .json build spec (stages it directly, no paste into
@@ -458,6 +501,8 @@ public class WebStatusServer {
                 if (bot == null) { respond(ex, 400, "Bot not found"); return; }
                 boolean ok = dev.ghbot.core.MainThread.call(() ->
                         ghosts.approve(bot, Bukkit.getConsoleSender()));
+                recordReview("[" + ts() + "] " + (ok ? "✅ Approved" : "⚠️ Approve — nothing staged")
+                        + " \"" + job.name + "\" (" + job.model.size() + " blocks)");   // v0.21.42
                 respond(ex, ok ? 200 : 400, ok ? "Approved" : "Nothing staged");
             }
             case "deny" -> {
@@ -469,6 +514,7 @@ public class WebStatusServer {
                     ghosts.clear(bot, Bukkit.getConsoleSender(), false);
                     return null;
                 });
+                recordReview("[" + ts() + "] ❌ Denied \"" + job.name + "\" (" + job.model.size() + " blocks)");   // v0.21.42
                 respond(ex, 200, "Denied/cleared");
             }
             case "export" -> {
@@ -477,6 +523,7 @@ public class WebStatusServer {
                 try {
                     var written = dev.ghbot.core.MainThread.call(() ->
                             schematics.export(job.name, job.model, "all"));
+                    recordReview("[" + ts() + "] 📦 Exported \"" + job.name + "\" (" + written.size() + " file(s))");   // v0.21.42
                     respond(ex, 200, "Exported " + written.size() + " files");
                 } catch (Exception e) {
                     respond(ex, 500, "Export failed: " + e.getMessage());

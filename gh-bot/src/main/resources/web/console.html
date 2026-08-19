@@ -19,6 +19,8 @@
   .bubble{max-width:80%;padding:9px 13px;border-radius:var(--radius);position:relative;word-wrap:break-word}
   .bubble.user{align-self:flex-end;background:var(--bubble-user);border-bottom-right-radius:5px}
   .bubble.bot{align-self:flex-start;background:var(--bubble-bot);border:1px solid var(--line);border-bottom-left-radius:5px}
+  .bubble.evt{align-self:center;background:transparent;border:1px dashed var(--line);color:var(--dim);font-size:12px;max-width:92%;padding:5px 10px;text-align:center}
+  .bubble.evt .t{display:none}
   .bubble .t{display:block;font-size:10px;color:var(--dim);margin-bottom:2px;letter-spacing:.02em;text-align:right}
   .bubble .txt{white-space:pre-wrap}
   .bubble .txt p{margin:0 0 6px}
@@ -289,7 +291,21 @@ async function status(){
     document.getElementById('bots').innerHTML=b||'<div class="kv">—</div>';
   }catch(e){}
 }
-status(); setInterval(status,5000);
+status(); setInterval(()=>{ status(); pollEvents(); },5000);
+
+// ── v0.21.42 — review-activity feed: Approve / Deny / Export pressed in the 3D viewer
+// show up here in the chat console as bubbles (server records them in a small feed
+// that we poll alongside /api/status). Cursor = how many events we've already shown.
+let evtCursor=0;
+async function pollEvents(){
+  try{
+    const r=await fetch('/api/events?after='+evtCursor);
+    if(!r.ok) return;
+    const j=await r.json();
+    (j.events||[]).forEach(e=>{ addBubble('bot', e, 'evt'); });
+    if(j.next!=null) evtCursor=j.next;
+  }catch(e){}
+}
 
 /* ------------------------------------------------------------------ *
  *  SECRETARY — on-device local AI via WebLLM (MLCEngine), WebGPU.

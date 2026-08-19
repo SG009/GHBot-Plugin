@@ -960,6 +960,35 @@ public class SmokeTest {
             check("upload rejects non-json/image", false);
             check("upload invalid json rejected", false);
         }
+        // v0.21.42 — review-activity feed: Approve/Deny/Export in the 3D viewer → /api/events
+        try {
+            WebStatusServer evSrv = new WebStatusServer(0, () -> java.util.Map.of(), () -> java.util.List.of(), wlog);
+            evSrv.attachChat(new ChatService(null, pr, wlog, 10), registry,
+                    () -> new dev.ghbot.agent.ToolExecutor((n, a) -> "tool:" + n), null,
+                    () -> java.util.Map.of("TPS", "20.0"));
+            evSrv.start();
+            int ep = evSrv.port();
+            evSrv.recordReview("[00:00:00] ✅ Approved \"Test\" (12 blocks)");
+            evSrv.recordReview("[00:00:01] ❌ Denied \"Test\" (12 blocks)");
+            java.net.HttpURLConnection ev = (java.net.HttpURLConnection) new java.net.URL(
+                    "http://127.0.0.1:" + ep + "/api/events?after=0").openConnection();
+            ev.setConnectTimeout(3000); ev.setReadTimeout(3000);
+            String evBody = new String(ev.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            ev.disconnect();
+            check("api/events returns recorded actions", evBody.contains("Approved")
+                    && evBody.contains("Denied") && evBody.contains("\"next\":2"));
+            java.net.HttpURLConnection ev2 = (java.net.HttpURLConnection) new java.net.URL(
+                    "http://127.0.0.1:" + ep + "/api/events?after=2").openConnection();
+            ev2.setConnectTimeout(3000); ev2.setReadTimeout(3000);
+            String evBody2 = new String(ev2.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            ev2.disconnect();
+            check("api/events cursor skip works", evBody2.contains("\"events\":[]") && evBody2.contains("\"next\":2"));
+            evSrv.stop();
+        } catch (Exception e) {
+            System.out.println("  [FAIL-DBG] events: " + e);
+            check("api/events returns recorded actions", false);
+            check("api/events cursor skip works", false);
+        }
         // v0.21.40 — vision support flags + imageToSpec fallback message
         check("gemini claims vision", new dev.ghbot.ai.GeminiClient(true, "gemini-2.5-flash", "k", "https://generativelanguage.googleapis.com/").supportsVision());
         check("ollama claims vision", new dev.ghbot.ai.OllamaClient(true, "minimax-m3:cloud", "http://localhost:11434").supportsVision());
@@ -1003,6 +1032,27 @@ public class SmokeTest {
             check("140KB dragon spec parses exact", true);  // file absent in this sandbox
             check("140KB dragon → 1852 set-ops", true);
         }
+
+        // v0.21.42 — mega build cap raised 20k → 100k
+        check("max blocks cap is 100000", dev.ghbot.builder.JsonBuildSpec.MAX_BLOCKS == 100_000);
+        StringBuilder mega = new StringBuilder("{\"name\":\"Mega\",\"palette\":{\"0\":\"minecraft:stone\"},\"blocks\":[");
+        for (int i = 0; i < 25000; i++) {
+            if (i > 0) mega.append(',');
+            mega.append("{\"x\":").append(i % 200).append(",\"y\":").append(i / 200).append(",\"z\":0,\"block\":\"0\"}");
+        }
+        mega.append("]}");
+        var megaSpec = dev.ghbot.builder.JsonBuildSpec.parse(mega.toString());
+        check("25k-block spec parses (was rejected at 20k)", megaSpec != null && megaSpec.isValid()
+                && megaSpec.blocks.size() == 25000);
+        StringBuilder too = new StringBuilder("{\"name\":\"TooBig\",\"palette\":{\"0\":\"minecraft:stone\"},\"blocks\":[");
+        for (int i = 0; i < dev.ghbot.builder.JsonBuildSpec.MAX_BLOCKS + 1; i++) {
+            if (i > 0) too.append(',');
+            too.append("{\"x\":0,\"y\":0,\"z\":0,\"block\":\"0\"}");
+        }
+        too.append("]}");
+        var tooSpec = dev.ghbot.builder.JsonBuildSpec.parse(too.toString());
+        check("100001-block spec rejected", tooSpec != null && !tooSpec.isValid()
+                && String.join(" ", tooSpec.errors).contains("too many blocks"));
 
         // Phase 9b v2 — tool protocol + SSE streaming
         check("tool protocol parses call", dev.ghbot.agent.ToolProtocol.firstCall(

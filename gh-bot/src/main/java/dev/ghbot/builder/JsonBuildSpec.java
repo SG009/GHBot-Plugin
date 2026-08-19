@@ -22,6 +22,9 @@ import java.util.Map;
  */
 public class JsonBuildSpec {
 
+    /** v0.21.42 — max blocks in one build spec, raised 20 000 → 100 000 (mega builds). */
+    public static final int MAX_BLOCKS = 100_000;
+
     public String name = "unnamed";
     public final Map<String, String> palette = new LinkedHashMap<>();
     public final List<BlockPlacement> blocks = new ArrayList<>();
@@ -164,8 +167,8 @@ public class JsonBuildSpec {
                 return;
             }
         }
-        if (spec.blocks.size() > 20000) {
-            spec.errors.add("too many blocks (" + spec.blocks.size() + " > 20000) — too large for a ghost build");
+        if (spec.blocks.size() > MAX_BLOCKS) {
+            spec.errors.add("too many blocks (" + spec.blocks.size() + " > " + MAX_BLOCKS + ") — too large for a ghost build");
         }
     }
 
