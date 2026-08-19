@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTO - Unlock Your Potential</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #F8F9FB; --color-lavender: #E0C3FC; --color-mint: #D8F3DC; --color-pink: #FFDEE9;
+            --text-dark: #121212; --font-heading: 'Syne', sans-serif; --font-body: 'Inter', sans-serif;
+            --glass-bg: rgba(255, 255, 255, 0.4); --glass-border: 1px solid rgba(255, 255, 255, 0.6);
+            --glass-blur: blur(15px); --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: var(--bg-color); font-family: var(--font-body); color: var(--text-dark); overflow-x: hidden; }
+
+        .mesh-gradient-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background: radial-gradient(circle at 15% 50%, var(--color-lavender), transparent 25%),
+                        radial-gradient(circle at 85% 30%, var(--color-mint), transparent 25%),
+                        radial-gradient(circle at 50% 80%, var(--color-pink), transparent 25%);
+            filter: blur(60px);
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; width: 100%; }
+
+        /* Mobile-Friendly Title */
+        .hero-title { 
+            font-family: var(--font-heading); 
+            font-size: 2.4rem; 
+            line-height: 1.1; 
+            margin-top: 60px; 
+            margin-bottom: 24px; 
+            text-transform: uppercase;
+        }
+
+        .glass-card { 
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); 
+            border: var(--glass-border); border-radius: 24px; padding: 25px; 
+            box-shadow: var(--shadow-soft); width: 100%; max-width: 550px; 
+        }
+
+        #ai-log { 
+            background: rgba(0,0,0,0.85); color: #00ff00; font-family: monospace; 
+            font-size: 11px; padding: 12px; border-radius: 12px; height: 140px; 
+            overflow-y: auto; margin: 15px 0; border: 1px solid #333; line-height: 1.5;
+        }
+        
+        #chat-area { height: 140px; overflow-y: auto; margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .input-box { display: flex; gap: 10px; }
+        input { flex: 1; padding: 14px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); outline: none; }
+        .btn-send { padding: 14px 25px; border-radius: 12px; border: none; background: var(--text-dark); color: white; font-weight: 700; cursor: pointer; }
+        .btn-send:disabled { background: #bbb; }
+    </style>
+</head>
+<body>
+    <div class="mesh-gradient-bg"></div>
+
+    <main class="container">
+        <h1 class="hero-title">MUCHTHEME<br>AI CHAT</h1>
+
+        <div class="glass-card">
+            <p id="status" style="font-weight: 600;">System: Starting...</p>
+            <div id="ai-log">Logs will appear here...</div>
+            <div id="chat-area"></div>
+            <div class="input-box">
+                <input type="text" id="user-input" placeholder="Booting..." disabled>
+                <button id="send-btn" class="btn-send" disabled>Wait</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const logger = document.getElementById('ai-log');
+        const log = (msg) => { logger.innerHTML += `> ${msg}<br>`; logger.scrollTop = logger.scrollHeight; };
+
+        async function boot() {
+            log("🔵 Step 1: Engine Starting...");
+            
+            try {
+                // LOAD LIBRARY
+                const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+
+                // CONFIGURE FOR MOBILE
+                env.allowLocalModels = false;
+                env.backends.onnx.wasm.proxy = false; 
+                env.backends.onnx.wasm.numThreads = 1;
+
+                log("🔵 Step 2: Downloading Smart Model (Qwen 0.5B)...");
+                document.getElementById('status').innerText = "System: Loading the AI...";
+
+                // SWITCHING TO A CHAT MODEL (Qwen 1.5)
+                const generator = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', {
+                    device: navigator.gpu ? 'webgpu' : 'wasm',
+                    quantized: true, // Makes it smaller/faster
+                    progress_callback: (p) => {
+                        if (p.status === 'progress') log(`📥 Loading: ${p.progress.toFixed(1)}%`);
+                    }
+                });
+
+                log("✅ SYSTEM ONLINE.");
+                document.getElementById('status').innerText = "System: Start your conversation";
+                
+                const inputEl = document.getElementById('user-input');
+                const btn = document.getElementById('send-btn');
+                
+                inputEl.disabled = false;
+                inputEl.placeholder = "Type a message...";
+                btn.disabled = false; 
+                btn.innerText = "Send";
+
+                btn.onclick = async () => {
+                    const text = inputEl.value;
+                    if(!text) return;
+
+                    // 1. SHOW USER MESSAGE
+                    document.getElementById('chat-area').innerHTML += `<div style="margin-bottom: 10px; color: #666;"><b>You:</b> ${text}</div>`;
+                    inputEl.value = "";
+                    log("AI Thinking...");
+
+                    // 2. FORMAT PROMPT (Crucial for correct answers)
+                    // We wrap the text so the AI knows it's a conversation
+                    const messages = [
+                        { role: "system", content: "You are a helpful assistant named Iraa. Keep answers short and precise." },
+                        { role: "user", content: text }
+                    ];
+
+                    // 3. GENERATE
+                    const out = await generator(messages, { 
+                        max_new_tokens: 100,
+                        temperature: 0.7,
+                        do_sample: false // Force logic over creativity
+                    });
+
+                    // 4. CLEAN UP RESPONSE
+                    // The model returns the full conversation; we extract just the new part
+                    const reply = out[0].generated_text.at(-1).content;
+                    
+                    document.getElementById('chat-area').innerHTML += `<div style="margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #000;"><b>AI:</b> ${reply}</div>`;
+                    
+                    // Auto-scroll to bottom
+                    const chatBox = document.getElementById('chat-area');
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                };
+
+            } catch (err) {
+                log(`❌ ERROR: ${err.message}`);
+            }
+        }
+
+        boot();
+    </script>
+</body>
+</html>
+

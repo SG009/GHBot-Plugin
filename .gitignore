@@ -1,0 +1,25 @@
+# ── Gradle / build output ──
+build/
+.gradle/
+*.class
+*.jar.lock
+
+# ── IDE / OS ──
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ── Runtime / data (never commit live server data) ──
+logs/
+plugins/
+*.log
+sessions.yml
+learning_dataset.yml
+admin-actions.yml
+
+# ── Secrets (never commit) ──
+*.key
+*.pem
+.env
+credentials.json

@@ -1,0 +1,134 @@
+# ═══════════════════════════════════════════════════════════════════
+# GH-Bot configuration — mirrors your old mineflayer settings.json
+# structure so the feel carries over. Phase 0 scope only; later phases
+# add providers, web server, schematic formats, etc.
+# ═══════════════════════════════════════════════════════════════════
+
+bots:
+  # Bot addressed by bare "@GH ..." — defaults to the first entry.
+  default-bot: GH000
+  # Add more bots here to deploy parallel crews (GH001, GH002, ...).
+  list:
+    - id: GH000
+      provider: auto            # auto | gemini | ollama | openai | fallback  (Phase 2+)
+      queue-size: 8
+      max-build-size: 60        # max block extent per job (Phase 3+)
+      mode: review              # review | direct | plan                      (Phase 3+)
+      animate: false            # cinematic animated build pass on approve    (Phase 3+)
+      avatar:
+        enabled: false          # Enderman statue at build site              (Phase 4+)
+        type: enderman          # enderman | copper_golem (if confirmed)
+        stay: false             # keep avatar after job done
+      role: general             # general | architect | builder | admin
+      debuglog: false
+
+server:
+  web:
+    enabled: false              # web status page + 3D preview               (Phase 3+)
+    port: 8580
+    bind: 0.0.0.0               # binds to LAN IP so you can open it from another device
+
+utils:
+  # WIB (Asia/Jakarta) timestamps in all console logs — like your old bot
+  wib-log: true
+  # Append in-game chat to logs/chat.log with WIB timestamps
+  chat-log: true
+  # --- retired from the old mineflayer project (no fake-player login needed) ---
+  # auto-auth:      { enabled: false, password: "" }
+  # anti-afk:       { enabled: true,  sneak: true }
+  # chat-messages:  { enabled: false, repeat: true, repeat-delay: 60, messages: [] }
+  # auto-reconnect: { enabled: false, delay-ms: 5000 }
+
+terrain:
+  # Phase 2 — the bot's eyes (revived scan.js)
+  scan-radius: 20             # default @GH000 scan radius
+  max-radius: 200             # hard cap for scan/find radius
+
+ai:
+  # Phase 5 — AI providers ("nothing default": enable what you use)
+  # Gemini free tier: no credit card, 1,500 req/day. Ollama: local, zero cost.
+  providers:
+    gemini:
+      enabled: false
+      model: gemini-2.5-flash
+      api-key: ""                 # ← paste your Gemini API key (ai.google.dev)
+      base-url: https://generativelanguage.googleapis.com/
+    ollama:
+      enabled: false
+      model: qwen2.5:0.5b         # local model, or a cloud model e.g. minimax-m3:cloud (pull it in Termux first: ollama pull <model>:cloud)
+      base-url: http://localhost:11434   # your Termux Ollama — cloud models work through the same address, no key needed
+    openai:
+      enabled: false
+      model: gpt-4o-mini
+      api-key: ""
+      base-url: https://api.openai.com/v1
+    # v0.21.16 — EXTRA OpenAI-compatible providers (free tiers, no heavy router needed).
+    # Add as many as you like — each becomes a real option in `provider list` /
+    # `provider set <id>`, and part of auto-fallback (after gemini/ollama/openai).
+    # Pick ONE to enable at a time (or several) — they run in list order.
+    extra:
+      # Pollinations — free, NO key, multiple models (openai/claude/gemini/deepseek…). Great default.
+      # v0.21.22 — correct endpoint: base-url must end in /v1 (OpenAIClient appends /chat/completions).
+      # (legacy text.pollinations.ai/openai → 402 deprecated; enter.pollinations.ai/openai → 405 wrong.)
+      polls:
+        name: Pollinations
+        enabled: true
+        model: openai
+        api-key: ""
+        base-url: https://gen.pollinations.ai/v1
+      # Groq — free key (console.groq.com), very fast. Uncomment to use.
+      # groq:
+      #   name: Groq
+      #   enabled: true
+      #   model: llama-3.3-70b-versatile
+      #   api-key: "gsk_..."
+      #   base-url: https://api.groq.com/openai/v1
+      # Cerebras — free key, very fast. Uncomment to use.
+      # cerebras:
+      #   name: Cerebras
+      #   enabled: true
+      #   model: llama-4-scout-17b-16e-instruct
+      #   api-key: "..."
+      #   base-url: https://api.cerebras.ai/v1
+      # Kiro-gateway (free Claude 4.5/GLM-5/MiniMax via OAuth) — runs a tiny local proxy
+      # on your phone (kiro-gateway), NOT a heavy router. Uncomment once it's running.
+      # kiro:
+      #   name: Kiro (free Claude)
+      #   enabled: true
+      #   model: kiroz/claude-sonnet-4.5
+      #   api-key: "your-kiro-proxy-key"
+      #   base-url: http://localhost:3000/v1
+      # 9Router (if you ever want the full router) — same pattern, base-url http://localhost:20128/v1
+  chat-max-history: 20            # messages kept per chat session
+  compress-budget-chars: 1200     # RTK-style tool-result compression (chars kept in AI context; 0 = off)
+
+build:
+  # Phase 6 — the builder
+  tps-pause-threshold: 16.0     # P3: pause placement when TPS drops below this
+  pause-ticks: 10               # ticks to skip when paused
+
+schematic:
+  # Phase 12 — auto-save approved builds to the schematic library
+  auto-save-approved: false
+
+edit:
+  # Phase 3 — block editing (set/replace/terraform/undo)
+  blocks-per-tick: 200        # how many blocks to mutate per tick (TPS guard)
+  max-region: 20000           # cap on blocks per replace/terraform op
+  undo-max-snapshots: 50      # undo stack depth per bot
+
+core:
+  # Phase 1 — Core Brain: live system stats + capability awareness (P16)
+  stats-interval-ticks: 20      # how often to sample CPU/RAM/TPS (20 ticks = 1s)
+                                # sampling is SILENT — reports are on-demand via
+                                # /gh device-info and @GH000 cap (no console spam)
+  capability-notices: true      # one throttled "device capability" notice at startup
+  notice-throttle-seconds: 600  # min seconds between automatic notices
+
+allowed-players: []             # extra players allowed to use GH-bot (ops always allowed)
+
+sessions:
+  persist: true                 # P5 — save/restore bot state across restarts
+  dir: sessions
+
+self-test: true                 # run the Phase-0 self-test on enable (logs PASS/FAIL)
