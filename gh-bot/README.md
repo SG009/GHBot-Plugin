@@ -1,6 +1,6 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety · smoke **PASS** · jar `GHBot-0.21.41.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety · smoke **363/363 PASS** · jar `GHBot-0.21.41.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
@@ -13,17 +13,20 @@
 > read this section first. It is the verified truth as of **2026-08-19**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog.
->
-> **v0.21.41 changes** (session eviction + thread safety + ordering fix):
-> - `ChatService.sessions` → `ConcurrentHashMap` + TTL eviction (30 min stale, cap 100 sessions)
->   — prevents unbounded memory growth on the 6 GB phone
-> - `BuildService.running`, `GhostService.staged`, `UndoManager.stacks/open`, `BotRegistry.bots`
->   → `ConcurrentHashMap` (safe against async chat events / concurrent access)
-> - Session cleanup task runs every 5 min (async, async-safe)
-> - `JsonBuildSpec.parseWithDiagnostics()` — diagnostic parse with error messages for vision fallback
-> - Fixed init ordering: `avatarService`/`schematics` now created BEFORE being wired to ghost/build
-> - Web stats include `Sessions` count for monitoring
-> - Smoke suite: 360+ checks (new: session eviction, diagnostic parsing)
+
+### What's new in v0.21.41 (session eviction + thread safety + init-order fix)
+- `ChatService.sessions` → `ConcurrentHashMap` with **TTL eviction** (30 min stale, cap 100
+  sessions) — prevents unbounded memory growth on long-running servers (the 6 GB phone).
+  A cleanup task sweeps every 5 min (async-safe); the web status sidebar now shows a
+  **Sessions** count for monitoring.
+- `BuildService.running`, `GhostService.staged`, `UndoManager.stacks/open`, `BotRegistry.bots`
+  → `ConcurrentHashMap` — safe against async chat events / concurrent access.
+- `JsonBuildSpec.parseWithDiagnostics()` — parse failures now explain WHY (missing
+  `palette`/`blocks`, empty arrays, malformed JSON) instead of a bare null; used by the
+  vision fallback chain for clearer errors.
+- **Init-ordering fix:** `avatarService` / `schematics` are now constructed BEFORE they're
+  wired into the ghost/build services (previously the wiring passed null).
+- Smoke suite grew to **363 checks** (session eviction + diagnostics).
 
 ### What it is (v0.21.41)
 GH-Bot is a **PaperMC plugin** (Java 21, Paper API 1.21.11, single jar, no external deps —
@@ -68,7 +71,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **360+ checks**):
+2. Recompile + run the smoke suite (currently **363 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -164,7 +167,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (360+ checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (363 checks, all passing) · setup-build.sh (sandbox toolchain restore)
 releases/GHBot-0.21.41.jar            (current ship; old jars removed once confirmed)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```
