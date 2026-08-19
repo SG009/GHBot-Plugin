@@ -4,8 +4,8 @@ import dev.ghbot.bot.GHBot;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-bot undo stack (P2 time-rollback support).
@@ -15,8 +15,8 @@ import java.util.Map;
  */
 public class UndoManager {
 
-    private final Map<String, Deque<EditSnapshot>> stacks = new HashMap<>();
-    private final Map<String, EditSnapshot> open = new HashMap<>();
+    private final Map<String, Deque<EditSnapshot>> stacks = new ConcurrentHashMap<>();
+    private final Map<String, EditSnapshot> open = new ConcurrentHashMap<>();
     private final int maxSnapshots;
 
     public UndoManager(int maxSnapshots) {

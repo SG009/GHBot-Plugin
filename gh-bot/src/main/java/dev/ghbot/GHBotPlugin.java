@@ -104,16 +104,17 @@ public class GHBotPlugin extends JavaPlugin {
         ghostService.setOnStaged((bot, st) -> {                 // Phase 9 — auto-register web preview
             previews.register(st.specName, bot.id(), st.model, true);
         });
+        schematics = new SchematicService(getDataFolder().toPath(), log);  // Phase 8 — schematics
+        avatarService = new AvatarService(log);                       // Phase 12 — avatar
+        markerService = new MarkerService(log);                      // Phase 12 — markers
+        // v0.21.41 — wire avatar/schematic services AFTER they are constructed (ordering fix)
         ghostService.setAvatarService(avatarService);           // Phase 12 — avatar at build site
         ghostService.setSchematicService(schematics);
         ghostService.setAutoSaveApproved(cfg.autoSaveApproved());
         buildService.setAvatarService(avatarService);           // Phase 12 — avatar on direct build
-        schematics = new SchematicService(getDataFolder().toPath(), log);  // Phase 8 — schematics
         editService2 = new EditService(this, log, editService.undo(), cfg.editBlocksPerTick()); // Phase 10 — structure editing
         commandLearning = new CommandLearning(this, log);  // Phase 11 — command learning
         adminService = new AdminService(getDataFolder().getParentFile().toPath(), log, getDataFolder().toPath(), this); // Phase 11b — admin ops (owner enables reload health-check guard)
-        avatarService = new AvatarService(log);                       // Phase 12 — avatar
-        markerService = new MarkerService(log);                      // Phase 12 — markers
         dataset = new LearningDataset(getDataFolder().toPath(), log);      // Phase 8b — learning dataset
         downloader = new SchematicDownloader(log);
         previews = new PreviewRegistry(20);                    // Phase 9 — web preview jobs
@@ -166,6 +167,16 @@ public class GHBotPlugin extends JavaPlugin {
         if (cfg.selfTest()) {
             Bukkit.getScheduler().runTaskLater(this, this::selfTest, 1L);
         }
+
+        // v0.21.41 — periodic session eviction (every 5 min) to prevent memory creep
+        // on long-running servers (the 6 GB phone).
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                chatService.evictStaleSessions();
+            } catch (Exception e) {
+                log.warn("[GHBot] session eviction failed: " + e.getMessage());
+            }
+        }, 6000L, 6000L);   // 5 minutes = 5*60*20 ticks
     }
 
     /** Builds the agent tool executor (Phase 9b v2 + v0.21.9 thread-safe). */
@@ -432,6 +443,7 @@ public class GHBotPlugin extends JavaPlugin {
         m.put("Players", String.valueOf(sampler.stats().players));
         m.put("Uptime", sampler.stats().uptimeSec + "s");
         m.put("Locations", String.valueOf(locations.all().size()));
+        m.put("Sessions", String.valueOf(chatService.sessionCount()));   // v0.21.41
         return m;
     }
 

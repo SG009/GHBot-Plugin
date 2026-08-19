@@ -7,14 +7,19 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Chat & design sessions with per-bot-per-sender history.
  * All provider calls run on the bridge's async pool; replies are scheduled
  * back onto the main thread (safe to send to players).
+ *
+ * v0.21.41 — session eviction: sessions are capped at {@link #MAX_SESSIONS}
+ * and stale sessions (> {@link #SESSION_TTL_MS} unused) are evicted to prevent
+ * unbounded memory growth on long-running servers (especially the 6 GB phone).
+ * Thread-safe via ConcurrentHashMap (chat can arrive on async events).
  */
 public class ChatService {
 
@@ -24,8 +29,14 @@ public class ChatService {
     private final int maxHistory;
     private final int compressBudget;   // v0.21.17 — RTK-style tool-result compression budget (chars)
 
-    // key = botId + "|" + senderName → session
-    private final Map<String, List<AIClient.ChatMessage>> sessions = new HashMap<>();
+    // key = botId + "|" + senderName → session  (v0.21.41 — concurrent + eviction)
+    private final Map<String, List<AIClient.ChatMessage>> sessions = new ConcurrentHashMap<>();
+    private final Map<String, Long> sessionLastAccess = new ConcurrentHashMap<>();
+
+    /** Max concurrent sessions before LRU eviction kicks in. */
+    private static final int MAX_SESSIONS = 100;
+    /** Sessions unused for this long (ms) are evicted on the next cleanup sweep. */
+    private static final long SESSION_TTL_MS = 30 * 60 * 1000L;   // 30 minutes
 
     /** v0.21.40 — system prompt for image→JSON build spec (vision). */
     private static final String VISION_SYSTEM = """
@@ -52,10 +63,11 @@ public class ChatService {
                 String spec = c.chatWithImage(VISION_SYSTEM,
                         "Output the JSON build spec for the structure in this image.",
                         mimeType, imageBytes);
-                var jspec = dev.ghbot.builder.JsonBuildSpec.parse(spec);
-                if (jspec != null && jspec.isValid()) return spec;
-                log.warn("[GHBot] vision provider " + c.id() + " returned non-spec text ("
-                        + (spec == null ? "null" : spec.length()) + " chars) — trying next");
+                var result = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(spec);
+                if (result.isValid()) return spec;
+                log.warn("[GHBot] vision provider " + c.id() + " returned invalid spec ("
+                        + (spec == null ? "null" : spec.length()) + " chars): "
+                        + result.summary() + " — trying next");
             } catch (Exception e) {
                 log.warn("[GHBot] vision provider " + c.id() + " failed: "
                         + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
@@ -111,7 +123,7 @@ public class ChatService {
                              java.util.function.Consumer<String> onChunk,
                              dev.ghbot.agent.ToolExecutor tools) {
         String key = bot.id() + "|" + sessionKey;
-        List<AIClient.ChatMessage> hist = sessions.computeIfAbsent(key, k -> new ArrayList<>());
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         hist.add(new AIClient.ChatMessage("user", text));
         trim(hist);
         log.consoleLog("[" + bot.id() + "] session=" + sessionKey + " USER: " + text);
@@ -236,7 +248,7 @@ public class ChatService {
     /** Sync chat — returns the reply text (used by the web chat panel). */
     public String chatSync(GHBot bot, String text) {
         String key = bot.id() + "|web";
-        List<AIClient.ChatMessage> hist = sessions.computeIfAbsent(key, k -> new ArrayList<>());
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         hist.add(new AIClient.ChatMessage("user", text));
         trim(hist);
         log.consoleLog("[" + bot.id() + "] session=web USER: " + text);
@@ -249,7 +261,7 @@ public class ChatService {
     /** Free chat with the bot (keeps conversation memory). */
     public void chat(GHBot bot, CommandSender sender, String text) {
         String key = bot.id() + "|" + sender.getName();
-        List<AIClient.ChatMessage> hist = sessions.computeIfAbsent(key, k -> new ArrayList<>());
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         hist.add(new AIClient.ChatMessage("user", text));
         trim(hist);
 
@@ -264,7 +276,7 @@ public class ChatService {
     /** Guided design conversation: stores a topic; later messages continue it. */
     public void design(GHBot bot, CommandSender sender, String[] args) {
         String key = bot.id() + "|" + sender.getName() + "|design";
-        List<AIClient.ChatMessage> hist = sessions.computeIfAbsent(key, k -> new ArrayList<>());
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         String input = String.join(" ", args).trim();
 
         if (input.equalsIgnoreCase("done") || input.equalsIgnoreCase("summary")) {
@@ -338,6 +350,65 @@ public class ChatService {
     private void trim(List<AIClient.ChatMessage> hist) {
         while (hist.size() > maxHistory) hist.remove(0);
     }
+
+    /** v0.21.41 — get-or-create a session list, recording last-access time. */
+    private List<AIClient.ChatMessage> getOrCreateSession(String key) {
+        sessionLastAccess.put(key, System.currentTimeMillis());
+        List<AIClient.ChatMessage> list = sessions.get(key);
+        if (list != null) return list;
+        // computeIfAbsent on ConcurrentHashMap is atomic per key
+        list = sessions.computeIfAbsent(key, k -> new ArrayList<>());
+        evictIfNeeded();
+        return list;
+    }
+
+    /**
+     * v0.21.41 — evict stale / excess sessions.
+     * Called automatically after session creation; can also be called periodically
+     * by the plugin (e.g. every 5 minutes) for thorough cleanup.
+     */
+    public void evictStaleSessions() {
+        long now = System.currentTimeMillis();
+        // 1) Remove sessions that haven't been accessed within the TTL
+        List<String> stale = new ArrayList<>();
+        sessionLastAccess.forEach((key, ts) -> {
+            if (now - ts > SESSION_TTL_MS) stale.add(key);
+        });
+        for (String key : stale) {
+            sessions.remove(key);
+            sessionLastAccess.remove(key);
+        }
+        if (!stale.isEmpty()) {
+            log.info("[GHBot] evicted " + stale.size() + " stale chat session(s) (>"
+                    + (SESSION_TTL_MS / 60_000) + " min idle). " + sessions.size() + " active.");
+        }
+        // 2) If still over the cap, evict least-recently-used until under
+        if (sessions.size() > MAX_SESSIONS) {
+            List<Map.Entry<String, Long>> byAge = new ArrayList<>(sessionLastAccess.entrySet());
+            byAge.sort(Map.Entry.comparingByValue());   // oldest first
+            int toRemove = sessions.size() - MAX_SESSIONS;
+            for (int i = 0; i < toRemove && i < byAge.size(); i++) {
+                String key = byAge.get(i).getKey();
+                sessions.remove(key);
+                sessionLastAccess.remove(key);
+            }
+            if (toRemove > 0) {
+                log.info("[GHBot] LRU-evicted " + Math.min(toRemove, byAge.size())
+                        + " chat session(s) (cap=" + MAX_SESSIONS + "). " + sessions.size() + " active.");
+            }
+        }
+    }
+
+    /** v0.21.41 — evict if over cap (called on every new session creation). */
+    private void evictIfNeeded() {
+        if (sessions.size() <= MAX_SESSIONS) return;
+        // Only do the full sweep occasionally (not every single access)
+        if (sessions.size() <= MAX_SESSIONS + 10) return;
+        evictStaleSessions();
+    }
+
+    /** v0.21.41 — current number of active chat sessions (for /status or debug). */
+    public int sessionCount() { return sessions.size(); }
 
     private void send(CommandSender sender, String text) {
         Bukkit.getScheduler().runTask(plugin, () -> sender.sendMessage(text));
