@@ -1,0 +1,47 @@
+# GH-Bot — smoke suite on every push
+# Builds the plugin jar with the Gradle wrapper (Java 21, Paper API 1.21.11) and
+# runs the headless smoke suite (tools/SmokeTest.java, currently 355 checks) that
+# the project uses as its regression gate. No Paper server needed — pure JVM.
+
+name: smoke
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gh-bot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle (wrapper + dependency cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build plugin jar
+        run: ./gradlew --no-daemon clean jar
+
+      - name: Compile + run smoke suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          # classpath = the built jar + every dependency jar in the Gradle cache
+          # (compileOnly paper-api + its transitive deps land there via `gradle jar`)
+          JAR=$(ls build/libs/GHBot-*.jar | head -1)
+          CP="$JAR:$(find ~/.gradle/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
+          mkdir -p /tmp/smoke-classes
+          javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
+          java -Djava.io.tmpdir=/tmp -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest

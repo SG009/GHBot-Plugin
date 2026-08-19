@@ -973,10 +973,21 @@ public class SmokeTest {
         check("vision unsupported throws clearly", visionThrew);
 
         // v0.21.40 — real-world 140KB dragon spec (owner's file, kept as a regression
-        // fixture under tools/fixtures so this check survives sandbox resets) parses deterministically
-        java.nio.file.Path dragonFile = java.nio.file.Paths.get("/home/user/gh-bot/tools/fixtures/ancient_dragon.json");
-        if (!java.nio.file.Files.exists(dragonFile)) dragonFile = java.nio.file.Paths.get("/home/user/uploads/ancient_dragon.json");
-        if (java.nio.file.Files.exists(dragonFile)) {
+        // fixture under tools/fixtures so this check survives sandbox resets) parses
+        // deterministically. Resolve CWD-relative first (CI runner + local repo root),
+        // then sandbox absolute locations as fallback.
+        java.nio.file.Path dragonFile = null;
+        String[] dragonCandidates = {
+            "tools/fixtures/ancient_dragon.json",             // repo root (CI, local)
+            "gh-bot/tools/fixtures/ancient_dragon.json",      // workspace root layout
+            "/home/user/gh-bot/tools/fixtures/ancient_dragon.json",  // dev sandbox
+            "/home/user/uploads/ancient_dragon.json"          // old evidence location
+        };
+        for (String c : dragonCandidates) {
+            java.nio.file.Path p = java.nio.file.Paths.get(c);
+            if (java.nio.file.Files.exists(p)) { dragonFile = p; break; }
+        }
+        if (dragonFile != null) {
             try {
                 String big = java.nio.file.Files.readString(dragonFile);
                 var bigSpec = dev.ghbot.builder.JsonBuildSpec.parse(big);
