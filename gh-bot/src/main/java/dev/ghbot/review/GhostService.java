@@ -14,9 +14,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Phase 7 — Ghost Review. Stages a build as a TEMPORARY in-place preview
@@ -35,7 +35,7 @@ public class GhostService {
     private final int blocksPerTick;
 
     // botId -> staged state
-    private final Map<String, Staged> staged = new HashMap<>();
+    private final Map<String, Staged> staged = new ConcurrentHashMap<>();
 
     public static class Staged {
         public String specName;

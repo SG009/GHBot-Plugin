@@ -1,22 +1,22 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening · smoke 355/355 PASS · jar `GHBot-0.21.40.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.41 hardening · smoke PASS · jar `GHBot-0.21.41.jar`**
 
 > A hands-off AI-bot that replaces the admin for managing a Minecraft server and in-game designs.
 
 ## Quick pointers
 
 - **Start here for the full picture:** [`gh-bot/README.md`](gh-bot/README.md) — contains the
-  **agent handoff brief** (current state at v0.21.40: what the plugin is, the JSON-spec contract,
+  **agent handoff brief** (current state at v0.21.41: what the plugin is, the JSON-spec contract,
   build/test/ship commands, sandbox constraints, open backlog).
 - **Full history:** [`ai-builder-bot-plan.md`](ai-builder-bot-plan.md) — master plan + §17
-  per-version changelog (v0.21.33 → v0.21.40: JSON method evolution).
+  per-version changelog (v0.21.33 → v0.21.41: JSON method evolution + hardening).
 - **Plugin source:** [`gh-bot/`](gh-bot/) — Java 21, Paper API 1.21.11, package `dev.ghbot.*`
   (never `dev.ghbot.build`), hand-rolled JSON (no Gson).
-- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (355 checks) + `setup-build.sh` (restores the
+- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (360+ checks) + `setup-build.sh` (restores the
   JDK21/Gradle toolchain into /tmp — the dev sandbox resets every turn).
 - **Reference build spec fixture:** `gh-bot/tools/fixtures/ancient_dragon.json` (141 KB / 1,852 blocks).
-- **Releases:** `releases/GHBot-<ver>.jar` (current ship; old jars removed once confirmed).
+- **Releases:** `releases/GHBot-<ver>.jar` (current ship: v0.21.41; old jars removed once confirmed).
 - **Old project:** `uploads/` — the owner's previous mineflayer GH-series bot (kept for reference).
 
 ## The one core mechanic

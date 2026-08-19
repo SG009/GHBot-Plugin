@@ -14,8 +14,8 @@ import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Phase 6 — the builder. Turns a DesignSpec into a voxel model, then places
@@ -29,7 +29,7 @@ public class BuildService {
     private final UndoManager undo;
     private final int blocksPerTick;
     private final double tpsPauseThreshold;
-    private final Map<String, Object> running = new HashMap<>();
+    private final Map<String, Object> running = new ConcurrentHashMap<>();
     private dev.ghbot.avatar.AvatarService avatarSvc;
     public void setAvatarService(dev.ghbot.avatar.AvatarService a) { this.avatarSvc = a; }
     private boolean avatarOn(GHBot bot) { return bot.memory().get("avatar") instanceof Boolean bb && bb; }

@@ -3,13 +3,13 @@ package dev.ghbot.bot;
 import dev.ghbot.config.PluginConfig;
 
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Registry of GH-bots — mirrors your old index.js activeBots + settings.json accounts. */
 public class BotRegistry {
 
-    private final Map<String, GHBot> bots = new LinkedHashMap<>();
+    private final Map<String, GHBot> bots = new ConcurrentHashMap<>();
     private final String defaultId;
 
     public BotRegistry(PluginConfig cfg) {

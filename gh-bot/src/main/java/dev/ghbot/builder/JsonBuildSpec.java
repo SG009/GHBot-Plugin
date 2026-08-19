@@ -66,6 +66,50 @@ public class JsonBuildSpec {
         return spec;
     }
 
+    /**
+     * v0.21.41 — diagnostic parse result. Wraps a spec (may be null) with a
+     * list of human-readable diagnostics so callers can report WHY a parse
+     * failed instead of just seeing null.
+     */
+    public record ParseResult(JsonBuildSpec spec, List<String> diagnostics) {
+        public boolean isBuildSpec() { return spec != null; }
+        public boolean isValid()     { return spec != null && spec.isValid(); }
+        public String summary() {
+            if (isValid()) return "OK: " + spec.blocks.size() + " blocks";
+            if (!diagnostics.isEmpty()) return String.join("; ", diagnostics);
+            return "not a JSON build spec (missing \"palette\" and/or \"blocks\")";
+        }
+    }
+
+    /**
+     * v0.21.41 — parse with diagnostics. Never returns null: if the input
+     * isn't a build spec, the spec field is null and diagnostics explain why.
+     * If the spec is found but invalid, errors appear in both the spec's
+     * error list and the diagnostics.
+     */
+    public static ParseResult parseWithDiagnostics(String text) {
+        List<String> diags = new ArrayList<>();
+        if (text == null || text.isBlank()) {
+            diags.add("input is null or blank");
+            return new ParseResult(null, diags);
+        }
+        int pi = text.indexOf("\"palette\"");
+        int bi = text.indexOf("\"blocks\"");
+        if (pi < 0) diags.add("missing \"palette\" field");
+        if (bi < 0) diags.add("missing \"blocks\" field");
+        if (pi < 0 && bi < 0) return new ParseResult(null, diags);
+
+        JsonBuildSpec spec = parse(text);
+        if (spec == null) {
+            diags.add("parser returned null (internal error)");
+            return new ParseResult(null, diags);
+        }
+        if (spec.palette.isEmpty() && pi >= 0) diags.add("palette parsed but was empty (malformed JSON?)");
+        if (spec.blocks.isEmpty() && bi >= 0)  diags.add("blocks parsed but was empty (malformed JSON?)");
+        diags.addAll(spec.errors);
+        return new ParseResult(spec, diags);
+    }
+
     private static void parsePalette(String text, JsonBuildSpec spec) {
         int start = text.indexOf("\"palette\"");
         if (start < 0) return;
