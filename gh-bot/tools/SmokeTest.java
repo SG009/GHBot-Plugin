@@ -983,6 +983,14 @@ public class SmokeTest {
             String evBody2 = new String(ev2.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             ev2.disconnect();
             check("api/events cursor skip works", evBody2.contains("\"events\":[]") && evBody2.contains("\"next\":2"));
+            // v0.21.43 — cursor ahead of the feed (plugin reload reset it) → server says reset
+            java.net.HttpURLConnection ev3 = (java.net.HttpURLConnection) new java.net.URL(
+                    "http://127.0.0.1:" + ep + "/api/events?after=99").openConnection();
+            ev3.setConnectTimeout(3000); ev3.setReadTimeout(3000);
+            String evBody3 = new String(ev3.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            ev3.disconnect();
+            check("api/events reload reset flag", evBody3.contains("\"reset\":true")
+                    && evBody3.contains("\"next\":2") && evBody3.contains("Approved"));
             evSrv.stop();
         } catch (Exception e) {
             System.out.println("  [FAIL-DBG] events: " + e);

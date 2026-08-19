@@ -102,7 +102,14 @@ public class WebStatusServer {
         }
         if (after < 0) after = 0;
         int size = reviewFeed.size();
-        StringBuilder sb = new StringBuilder("{\"next\":").append(size).append(",\"events\":[");
+        // v0.21.43 — plugin reload resets the in-memory feed (size drops below the client's
+        // cursor). If the cursor is ahead of the feed, tell the client to reset its cursor
+        // (it skips the replay of pre-reload events) so NEW events keep showing without a
+        // page refresh.
+        boolean reset = after > size;
+        if (reset) after = 0;
+        StringBuilder sb = new StringBuilder("{\"next\":").append(size)
+                .append(",\"reset\":").append(reset).append(",\"events\":[");
         boolean first = true;
         for (int i = Math.max(after, 0); i < size; i++) {
             if (!first) sb.append(',');

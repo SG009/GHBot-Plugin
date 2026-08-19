@@ -108,9 +108,12 @@ public final class CapabilityEstimator {
     /** Short one-line capability notice (throttled P16 messages). */
     public static String noticeLine(Report r) {
         if (r.tier() == TIER_PHONE) {
+            // v0.21.43 — est. is a SMOOTHNESS estimate, not a hard cap: uploaded JSON specs
+            // are accepted up to JsonBuildSpec.MAX_BLOCKS (100k); bigger just places slower.
             return "§7Heads up: running on " + r.tierName()
-                    + ". I can build up to ~" + r.estMaxBuildBlocks()
-                    + " blocks/job fine. More RAM = more bots + mega builds.";
+                    + ". Est. smooth ~" + r.estMaxBuildBlocks()
+                    + " blocks/job (uploaded JSON specs accepted up to "
+                    + dev.ghbot.builder.JsonBuildSpec.MAX_BLOCKS + " blocks — bigger places slower).";
         }
         if (r.tier() == TIER_GIGA) {
             return "§7GIGA-CHAD device tier " + r.tier() + " (" + r.tierName()

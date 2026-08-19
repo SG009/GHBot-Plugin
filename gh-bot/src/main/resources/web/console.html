@@ -302,6 +302,9 @@ async function pollEvents(){
     const r=await fetch('/api/events?after='+evtCursor);
     if(!r.ok) return;
     const j=await r.json();
+    // v0.21.43 — server restarted/reloaded and the feed reset: drop our cursor to the new
+    // feed WITHOUT rendering the pre-reload replay, so fresh events keep showing up.
+    if(j.reset){ evtCursor = (j.next!=null)?j.next:0; return; }
     (j.events||[]).forEach(e=>{ addBubble('bot', e, 'evt'); });
     if(j.next!=null) evtCursor=j.next;
   }catch(e){}

@@ -23,3 +23,6 @@ admin-actions.yml
 *.pem
 .env
 credentials.json
+
+# ── Owner evidence (transient test logs) ──
+uploads/*.txt

@@ -59,18 +59,32 @@ public class ChatService {
         for (AIClient c : providers.allConfigured()) {
             if (!c.supportsVision()) continue;
             tried.add(c.id());
-            try {
-                String spec = c.chatWithImage(VISION_SYSTEM,
-                        "Output the JSON build spec for the structure in this image.",
-                        mimeType, imageBytes);
-                var result = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(spec);
-                if (result.isValid()) return spec;
-                log.warn("[GHBot] vision provider " + c.id() + " returned invalid spec ("
-                        + (spec == null ? "null" : spec.length()) + " chars): "
-                        + result.summary() + " — trying next");
-            } catch (Exception e) {
-                log.warn("[GHBot] vision provider " + c.id() + " failed: "
-                        + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            for (int attempt = 1; attempt <= 2; attempt++) {   // v0.21.43 — one retry per provider
+                try {
+                    String spec = c.chatWithImage(VISION_SYSTEM,
+                            "Output the JSON build spec for the structure in this image.",
+                            mimeType, imageBytes);
+                    var result = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(spec);
+                    if (result.isValid()) return spec;
+                    log.warn("[GHBot] vision provider " + c.id() + " returned invalid spec ("
+                            + (spec == null ? "null" : spec.length()) + " chars): "
+                            + result.summary() + " — trying next");
+                    break;   // got a reply; no point retrying this provider
+                } catch (Exception e) {
+                    String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                    boolean transient5xx = c.id().equals("gemini")
+                            && (msg.contains("503") || msg.contains("429") || msg.contains("UNAVAILABLE")
+                                || msg.contains("RESOURCE_EXHAUSTED"));
+                    if (attempt == 1 && transient5xx) {
+                        // Gemini free tier: "high demand" spikes are usually brief — wait and retry once
+                        log.warn("[GHBot] vision provider " + c.id() + " transient failure (" + msg
+                                + ") — retrying in 5s");
+                        try { Thread.sleep(5000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                        continue;
+                    }
+                    log.warn("[GHBot] vision provider " + c.id() + " failed: " + msg);
+                    break;   // permanent failure (or retry exhausted) — move to next provider
+                }
             }
         }
         throw new RuntimeException("No vision-capable provider produced a valid build spec (tried: "
