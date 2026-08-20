@@ -70,6 +70,67 @@ public final class CoordResolver {
     }
 
     /**
+     * v0.22.1 — one shared "where" parser for scan/find/look/set/replace/terraform.
+     * Accepts: "at 86 86 262", "86 86 262", "86,86,262", "here"/"me", or a player
+     * name — by joining raw args (dropping a leading "at"/"to" keyword) and handing
+     * the phrase to {@link #resolve}. Returns null when nothing matches.
+     */
+    public static Location parseWhere(CommandSender sender, String[] args, Location fallback) {
+        if (args == null || args.length == 0) return fallback;
+        StringBuilder sb = new StringBuilder();
+        for (String a : args) {
+            if (a == null || a.isBlank()) continue;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(a);
+        }
+        String w = sb.toString().trim();
+        if (w.isEmpty()) return fallback;
+        String low = w.toLowerCase();
+        if (low.startsWith("at ")) w = w.substring(3).trim();
+        else if (low.startsWith("to ")) w = w.substring(3).trim();
+        return resolve(sender, w, fallback);
+    }
+
+    /** v0.22.1 — normalized scan-target: (radius, where-phrase) from raw scan args. */
+    public record ScanTarget(int radius, String where) {}
+
+    /**
+     * v0.22.1 — single source of truth for parsing `scan …` args, shared by the
+     * in-game command handler AND AutoTools (so they can never drift apart):
+     *   0 ints  → default radius, where = any words (here/me/player)
+     *   1 int   → radius
+     *   3 ints  → coordinates (default radius)
+     *   4 ints  → radius + 3 coordinates
+     *   "at" keyword is dropped; coordinates win over a where-phrase.
+     * Radius is clamped to [1, 200] to match the old handler.
+     */
+    public static ScanTarget scanTarget(String[] args, int defaultRadius) {
+        if (args == null || args.length == 0) return new ScanTarget(defaultRadius, null);
+        java.util.List<Integer> ints = new java.util.ArrayList<>();
+        java.util.List<String> words = new java.util.ArrayList<>();
+        for (String a : args) {
+            String t = a == null ? "" : a.trim();
+            if (t.isEmpty() || t.equalsIgnoreCase("at")) continue;
+            if (t.matches("-?\\d+")) ints.add(Integer.parseInt(t));
+            else words.add(t);
+        }
+        int radius = Math.max(1, Math.min(200, defaultRadius));
+        String where = null;
+        int n = ints.size();
+        if (n >= 3) {
+            int x = ints.get(n - 3), y = ints.get(n - 2), z = ints.get(n - 1);
+            where = x + " " + y + " " + z;
+            if (n == 4) radius = Math.max(1, Math.min(200, ints.get(0)));
+        } else if (n == 1) {
+            radius = Math.max(1, Math.min(200, ints.get(0)));
+        } else if (n == 2) {
+            radius = Math.max(1, Math.min(200, ints.get(0)));
+        }
+        if (!words.isEmpty() && where == null) where = String.join(" ", words);
+        return new ScanTarget(radius, where);
+    }
+
+    /**
      * Resolve a player name (optionally with the Bedrock "." prefix, e.g. ".SerthGembel009")
      * to their location. Case-insensitive; falls back to a "starts with" fuzzy match.
      * Works for console too — like your old scan.js "scan [me|playerName] block radius".

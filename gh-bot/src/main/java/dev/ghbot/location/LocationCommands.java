@@ -11,6 +11,10 @@ import org.bukkit.entity.Player;
 /**
  * Named-location commands: save-location / list-locations / delete-location / where.
  * Enables hands-off building ("build the hub at spawn") from chat or console.
+ *
+ * SHELVED v0.22.0 — whole class removed from the admin surface (JARVIS-FOR-ADMIN).
+ * Kept in code/git for revival; dispatch hard-blocks these commands. See
+ * {@code dev.ghbot.command.BotCommands.SHELVED}.
  */
 public final class LocationCommands {
 

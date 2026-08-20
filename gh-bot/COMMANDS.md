@@ -26,13 +26,18 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 ## Pillar 2 — Passive eyes + world edit
 | Command | What it does |
 |---|---|
-| `scan <where\|here\|me> [radius]` | Terrain summary (ground, heightmap, blocks, water) |
-| `look at <x, y, z\|here>` | What block is here? |
-| `find <block> [radius]` | Find blocks of a type |
+| `scan [radius] [where\|here\|me\|player\|at x y z] [--full [depth]]` | Terrain summary + **jsonspec** (surface by default; `--full` for depth) |
+| `look at <x, y, z\|here>` | What block is here? (+ single-block jsonspec w/ blockstate) |
+| `find <block> [radius]` | Find blocks of a type (+ jsonspec of the found coords) |
 | `set <block> <radius>` | Set a region of blocks |
 | `replace <from> <to> [radius]` | Swap block types in a region |
 | `terraform <smooth\|flatten\|raise\|lower> <radius>` | Terrain edits |
 | `undo [minutes]` | Undo last edit / revert recent edits |
+
+**v0.22.1 — eyes-as-data:** `scan`/`find`/`look` now also emit a **TerrainSpec**
+(`{name,palette,blocks[]}` in absolute coords + origin) to bot memory (`eyes.spec`),
+`logs/eyes/<name>.json` (full data), and a bounded 150-block inline JSON digest in the reply.
+`TerrainSpec.toBuildSpec()` round-trips it back into the build/edit path.
 
 ## Pillar 3 — Manage the server
 | Command | What it does |
@@ -64,6 +69,7 @@ absent from help/tools/auto-detect. Remove them from `BotCommands.SHELVED` + re-
 to revive.
 
 ## In progress (next)
-- **Pillar 2 upgrade:** `scan`/`find`/`look` emit **jsonspec** (`{name,palette,blocks[]}`) so the
-  bot sees the world as data → better `edit`/`set`/`replace`/`terraform`/`undo`.
+- **✅ Pillar 2 upgrade SHIPPED (v0.22.1):** `scan`/`find`/`look` emit **jsonspec**
+  (`{name,palette,blocks[]}`) so the bot sees the world as data → better
+  `edit`/`set`/`replace`/`terraform`/`undo`.
 - **Pillar 3 upgrade:** `cmd` results captured from the server console into the chat-console.

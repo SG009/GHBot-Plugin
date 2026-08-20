@@ -1,7 +1,5 @@
 package dev.ghbot.agent;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,15 +44,17 @@ public final class AutoTools {
             return new Call("worlds", new String[0], "worlds");
         }
 
-        // ── scan: "scan [radius] [x y z]" / "scan here/me" ──
+        // ── scan: "scan [radius] [x y z|at x y z|here/me/player]" ──
+        // v0.22.1 — normalized via the SAME parser the in-game handler uses
+        // (CoordResolver.scanTarget), so the web chat and @GH000 can't drift apart.
         if (low.startsWith("scan")) {
-            List<Integer> nums = ints(t);
-            String[] args;
-            if (nums.isEmpty()) args = new String[]{"50"};
-            else if (nums.size() == 1) args = new String[]{String.valueOf(nums.get(0))};
-            else if (nums.size() == 2) args = new String[]{String.valueOf(nums.get(0))};
-            else if (nums.size() == 3) args = new String[]{"50", String.valueOf(nums.get(0)), String.valueOf(nums.get(1)), String.valueOf(nums.get(2))};
-            else args = new String[]{String.valueOf(nums.get(0)), String.valueOf(nums.get(1)), String.valueOf(nums.get(2)), String.valueOf(nums.get(3))};
+            String[] toks = t.split("\\s+");
+            String[] rest = java.util.Arrays.copyOfRange(toks, 1, toks.length);
+            var st = dev.ghbot.terrain.CoordResolver.scanTarget(rest, 50);
+            java.util.List<String> argsList = new java.util.ArrayList<>();
+            argsList.add(String.valueOf(st.radius()));
+            if (st.where() != null) for (String w : st.where().split(" ")) argsList.add(w);
+            String[] args = argsList.toArray(new String[0]);
             return new Call("scan", args, "scan " + String.join(" ", args));
         }
 
@@ -131,15 +131,5 @@ public final class AutoTools {
         if (low.startsWith("build ") && low.length() > 6) return new Call("build", new String[]{t.substring(6).trim()}, "build " + t.substring(6).trim());
 
         return null;
-    }
-
-    /** All integers in a string (in order). */
-    private static List<Integer> ints(String s) {
-        List<Integer> out = new ArrayList<>();
-        Matcher m = Pattern.compile("-?\\d+").matcher(s);
-        while (m.find()) {
-            try { out.add(Integer.parseInt(m.group())); } catch (NumberFormatException ignored) {}
-        }
-        return out;
     }
 }

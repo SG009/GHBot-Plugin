@@ -1,5 +1,7 @@
 package dev.ghbot.builder;
 
+import org.bukkit.Material;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,13 +40,25 @@ public class JsonBuildSpec {
     public VoxelModel toModel() {
         VoxelModel m = new VoxelModel();
         for (BlockPlacement b : blocks) {
-            String blk = b.block();
-            if (blk == null || blk.isBlank()) continue;
-            String clean = blk.replace("minecraft:", "").toLowerCase();
-            if (clean.equals("air")) continue;
+            String clean = stripState(b.block());
+            if (clean == null || clean.isBlank() || clean.equals("air")) continue;
             m.set(b.x(), b.y(), b.z(), clean);
         }
         return m;
+    }
+
+    /**
+     * v0.22.1 — normalize a block token to a plain vanilla name:
+     * lowercase, drop the "minecraft:" prefix, and strip any blockstate
+     * properties ("oak_stairs[facing=north]" → "oak_stairs"). Used so a
+     * property-bearing name never reaches Material.matchMaterial / placement.
+     */
+    public static String stripState(String name) {
+        if (name == null) return null;
+        String n = name.replace("minecraft:", "").trim();
+        int b = n.indexOf('[');
+        if (b >= 0) n = n.substring(0, b).trim();
+        return n.toLowerCase();
     }
 
     /**
@@ -164,6 +178,15 @@ public class JsonBuildSpec {
             }
             if (b.block() == null || b.block().isBlank()) {
                 spec.errors.add("block with empty name at (" + b.x() + "," + b.y() + "," + b.z() + ")");
+                return;
+            }
+            // v0.22.1 — vanilla constraint: every block must resolve to a real
+            // Material, else we report WHY instead of silently skipping it at
+            // placement time (the silent skip was the source of "build places
+            // fewer blocks than the spec" drift on hallucinated names).
+            String clean = stripState(b.block());
+            if (clean != null && !clean.equals("air") && Material.matchMaterial(clean) == null) {
+                spec.errors.add("unknown block \"" + b.block() + "\" at (" + b.x() + "," + b.y() + "," + b.z() + ")");
                 return;
             }
         }

@@ -26,14 +26,21 @@ public final class BlockEditCommands {
         r.register("set", (b, ctx) -> {
             CommandSender sender = ctx.sender();
             String[] args = ctx.args();
-            // set <where> to <block>  |  set <where> <block>
-            int toIdx = -1;
-            for (int i = 0; i < args.length; i++) if (args[i].equalsIgnoreCase("to")) { toIdx = i; break; }
+            // set <where> to <block>  |  set <where> <block>  |  set <block> at <where>
+            int toIdx = -1, atIdx = -1;
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equalsIgnoreCase("to") && toIdx < 0) toIdx = i;
+                if (args[i].equalsIgnoreCase("at") && atIdx < 0) atIdx = i;
+            }
             if (args.length < 2) { sender.sendMessage("§eUsage: " + b.id() + " set <where> to <block>"); return; }
             String where, blockName;
             if (toIdx > 0) {
                 where = String.join(" ", Arrays.copyOfRange(args, 0, toIdx));
                 blockName = String.join(" ", Arrays.copyOfRange(args, toIdx + 1, args.length));
+            } else if (atIdx > 0) {
+                // v0.22.1 — accept the AI's natural order: "set stone at 86 86 262"
+                blockName = String.join(" ", Arrays.copyOfRange(args, 0, atIdx));
+                where = String.join(" ", Arrays.copyOfRange(args, atIdx, args.length));
             } else {
                 where = args[0];
                 blockName = String.join(" ", Arrays.copyOfRange(args, 1, args.length));

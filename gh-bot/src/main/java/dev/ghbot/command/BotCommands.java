@@ -66,8 +66,17 @@ public final class BotCommands {
         cmd("cmd", "Run server commands as console (multi via ';', systemic need confirm)", "cmd <command> [; command; …]");
     }
 
-    /** v0.22.0 — commands REMOVED from the admin surface (shelved, kept in code/git).
-     *  Dispatch rejects them so nothing runs; they are not advertised anywhere. */
+    /**
+     * v0.22.0 — commands REMOVED from the admin surface (shelved, kept in code/git).
+     * Dispatch rejects them so nothing runs; they are not advertised anywhere.
+     *
+     * v0.22.1 — FREEZE POLICY (owner decision D4): shelved code is KEPT for revival,
+     * NOT deleted. Each shelved registration carries a {@code // SHELVED v0.22.0}
+     * marker; the smoke suite's {@code ShelvedSurface} check asserts every name here
+     * is (a) hard-blocked at dispatch and (b) absent from CATALOG / toolSheet() /
+     * tool help. To revive a command: remove its name from this set, re-add it to
+     * CATALOG, and delete its {@code // SHELVED} marker — then re-run the smoke suite.
+     */
     public static final java.util.Set<String> SHELVED = java.util.Set.of(
             "design", "image", "memory", "debuglog",
             "where", "save-location", "list-locations", "delete-location",

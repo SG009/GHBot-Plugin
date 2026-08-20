@@ -1607,6 +1607,124 @@ public class SmokeTest {
         check("diagnostics: malformed blocks", diag4.isBuildSpec() && diag4.diagnostics().stream()
                 .anyMatch(d -> d.contains("blocks") || d.contains("empty")));
 
+        // ── v0.22.1 — HARDENING (B1–B5, B8) ─────────────────────────────────────
+        // B8 — vanilla block constraint in JsonBuildSpec (was: silent skip at placement)
+        check("stripState drops blockstate props",
+                "oak_stairs".equals(dev.ghbot.builder.JsonBuildSpec.stripState("minecraft:oak_stairs[facing=north]")));
+        var badBlk = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(
+                "{\"name\": \"x\", \"palette\": {\"0\": \"minecraft:not_a_real_block\"}, \"blocks\": [{\"x\":0,\"y\":0,\"z\":0,\"block\":\"0\"}]}");
+        check("vanilla: unknown block → diagnostic", badBlk.isBuildSpec()
+                && badBlk.diagnostics().stream().anyMatch(d -> d.contains("unknown block")));
+        var goodBlk = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(
+                "{\"name\": \"x\", \"palette\": {\"0\": \"minecraft:deepslate_bricks\"}, \"blocks\": [{\"x\":0,\"y\":0,\"z\":0,\"block\":\"0\"}]}");
+        check("vanilla: known block passes", goodBlk.isValid());
+        var propSpec = dev.ghbot.builder.JsonBuildSpec.parseWithDiagnostics(
+                "{\"name\": \"x\", \"blocks\": [{\"x\":0,\"y\":0,\"z\":0,\"block\":\"minecraft:oak_stairs[facing=north]\"}]}");
+        check("vanilla: blockstate name accepted", propSpec.isValid());
+
+        // B3 — heightmap persists through toMap/fromMap (was dropped on save)
+        var hmTs = new TerrainScanner.TerrainSummary();
+        hmTs.world = "world"; hmTs.minX = 0; hmTs.maxX = 2; hmTs.minZ = 0; hmTs.maxZ = 2;
+        hmTs.surfaceMin = 62; hmTs.surfaceMax = 66;
+        hmTs.heightmap.put(hmTs.heightmapKey(1, 2), 64);
+        hmTs.heightmap.put(hmTs.heightmapKey(0, 0), 62);
+        hmTs.topBlocks.put("grass_block", 2);
+        var hmBack = TerrainScanner.TerrainSummary.fromMap(hmTs.toMap());
+        check("heightmap round-trips", Integer.valueOf(64).equals(hmBack.height(1, 2))
+                && Integer.valueOf(62).equals(hmBack.height(0, 0)));
+        check("heightmap toMap keeps world+bounds", "world".equals(hmBack.world) && hmBack.maxX == 2);
+
+        // B4/B1 — shared scan-target parser: every form lands on the same coords
+        var stA = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"100", "at", "86", "86", "262"}, 20);
+        check("scanTarget: radius at x y z", stA.radius() == 100 && "86 86 262".equals(stA.where()));
+        var stB = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"86", "86", "262"}, 20);
+        check("scanTarget: bare x y z", stB.radius() == 20 && "86 86 262".equals(stB.where()));
+        var stC = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"here"}, 20);
+        check("scanTarget: here", stC.radius() == 20 && "here".equals(stC.where()));
+        var stD = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"50"}, 20);
+        check("scanTarget: radius only", stD.radius() == 50 && stD.where() == null);
+        var atScan = dev.ghbot.agent.AutoTools.detect("scan 100 at 86 86 262");
+        check("auto scan 100 at x y z args", atScan != null && atScan.name().equals("scan")
+                && atScan.args().length == 4 && atScan.args()[0].equals("100")
+                && atScan.args()[1].equals("86") && atScan.args()[3].equals("262"));
+
+        // B2 — find pronoun fallback ("find that" no longer a brittle error)
+        s.clear();
+        bridge.dispatch(def, s, "find", new String[]{"that"});
+        check("find pronoun no-context graceful", s.last().contains("isn't a block"));
+        def.memory().put("terrain", java.util.Map.of("topBlocks", java.util.Map.of("grass_block", 40)));
+        s.clear();
+        bridge.dispatch(def, s, "find", new String[]{"that"});
+        check("find pronoun falls back to dominant block", s.last().contains("dominant block"));
+        def.memory().remove("terrain");
+
+        // B4 — set accepts the AI's natural "set <block> at <where>" order
+        s.clear();
+        bridge.dispatch(def, s, "set", new String[]{"stone", "at", "1", "2", "3"});
+        check("set accepts block-at-order", !s.last().contains("Usage:") && !s.last().contains("Unknown block"));
+
+        // B5 — tool bridge is exactly the catalog (LEGACY_ALLOWED removed)
+        check("tool bridge == catalog (no legacy drift)",
+                dev.ghbot.agent.ToolBridge.ALLOWED.size() == dev.ghbot.command.BotCommands.CATALOG.size());
+
+        // ── v0.22.1 — EYES AS DATA (TerrainSpec, A1–A7) ───────────────────────
+        var ts2 = new dev.ghbot.terrain.TerrainSpec();
+        ts2.kind = "scan"; ts2.name = "scan@r2@10,64,20"; ts2.ox = 10; ts2.oy = 64; ts2.oz = 20;
+        ts2.add(10, 64, 20, "grass_block");
+        ts2.add(11, 64, 20, "oak_log");
+        ts2.add(10, 65, 20, "grass_block");
+        check("terrain spec palette dedupes", ts2.palette.size() == 2 && ts2.size() == 3);
+        check("terrain spec json has origin+kind",
+                ts2.toJson().contains("\"origin\"") && ts2.toJson().contains("\"kind\":\"scan\""));
+        var tsBs = ts2.toBuildSpec();
+        check("terrain spec → build spec", tsBs != null && tsBs.isValid() && tsBs.blocks.size() == 3);
+        check("terrain spec → build spec relative", tsBs.blocks.get(0).x() == 0
+                && tsBs.blocks.get(1).x() == 1 && tsBs.blocks.get(2).y() == 1);
+        var rt = dev.ghbot.builder.JsonBuildSpec.parse(ts2.toJson());
+        check("terrain spec json re-parses", rt != null && rt.isValid() && rt.blocks.size() == 3);
+        // look preserves blockstate, but round-trips to a plain vanilla block
+        var lookSpec = new dev.ghbot.terrain.TerrainSpec();
+        lookSpec.kind = "look"; lookSpec.ox = 5; lookSpec.oy = 64; lookSpec.oz = 7;
+        lookSpec.addRaw(5, 64, 7, "minecraft:oak_stairs[facing=north]");
+        check("look spec preserves blockstate", lookSpec.toJson().contains("oak_stairs[facing=north]"));
+        var lookBs = lookSpec.toBuildSpec();
+        check("look spec round-trips to plain block", lookBs != null && lookBs.isValid()
+                && "oak_stairs".equals(dev.ghbot.builder.JsonBuildSpec.stripState(lookBs.blocks.get(0).block())));
+        // bounded inline truncation at the 150-block budget (D2)
+        var big = new dev.ghbot.terrain.TerrainSpec();
+        big.kind = "scan"; big.ox = 0; big.oy = 0; big.oz = 0; big.name = "big";
+        for (int i = 0; i < 151; i++) big.add(i, 0, 0, "stone");
+        String inline = big.toJsonInline(150);
+        check("inline truncates at 150", inline.contains("\"truncated\":true") && inline.contains("\"total\":151"));
+        check("inline full when under cap", !big.toJsonInline(200).contains("truncated"));
+        check("INLINE_MAX is 150", dev.ghbot.terrain.TerrainSpec.INLINE_MAX == 150);
+        check("scanSpec null-world safe", dev.ghbot.terrain.TerrainScanner.scanSpec(
+                new org.bukkit.Location(null, 0, 64, 0, 0, 0), 10, 0) == null);
+        check("tool help advertises scan json", dev.ghbot.agent.ToolProtocol.helpText().contains("--full"));
+
+        // ── v0.22.1 — B6/B7: ShelvedSurface freeze + admin-only guard ──────────
+        int shelvedBlocked = 0;
+        for (String name : dev.ghbot.command.BotCommands.SHELVED) {
+            s.clear();
+            bridge.dispatch(def, s, name, new String[0]);
+            if (s.last().contains("shelved")) shelvedBlocked++;
+        }
+        check("shelved surface: every shelved command hard-blocked",
+                shelvedBlocked == dev.ghbot.command.BotCommands.SHELVED.size());
+        boolean shelvedLeak = false;
+        for (String name : dev.ghbot.command.BotCommands.SHELVED) {
+            // advertised = present in CATALOG, or listed as a tool line "- name " in
+            // the tool sheet / AI tool help (prose mentions like "parent add" don't count).
+            if (dev.ghbot.command.BotCommands.CATALOG.containsKey(name)
+                    || dev.ghbot.command.BotCommands.toolSheet().contains("- " + name + " ")
+                    || dev.ghbot.agent.ToolProtocol.helpText().contains("- " + name + " ")) {
+                shelvedLeak = true;
+                break;
+            }
+        }
+        check("shelved surface: not advertised anywhere", !shelvedLeak);
+        check("admin-only: console is admin", dev.ghbot.command.CommandBridge.isAdminSender(new Sender()));
+
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")
                 + "  (" + pass + " passed, " + fail + " failed)");
         System.exit(fail == 0 ? 0 : 1);
