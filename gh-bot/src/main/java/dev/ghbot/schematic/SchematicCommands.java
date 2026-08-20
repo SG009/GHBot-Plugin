@@ -6,6 +6,7 @@ import dev.ghbot.builder.DesignTemplates;
 import dev.ghbot.command.CommandBridge;
 import dev.ghbot.command.CommandRegistry;
 import dev.ghbot.log.WIBLogger;
+import dev.ghbot.terrain.CoordResolver;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -111,6 +112,20 @@ public final class SchematicCommands {
                 if (base == null) {
                     sender.sendMessage("§c[" + b.id() + "] Paste needs a location (stand there, or use 'at <where>').");
                     return;
+                }
+                // v0.22.1 — respect "paste <file> [at <x y z>|x z|x y z|here|player]" offsets
+                // (the old code ignored every arg after the filename and always pasted
+                // at the sender's base → the "it ignored my 30 10 offset" batch-test bug).
+                if (ctx.args().length >= 2) {
+                    String[] rest = java.util.Arrays.copyOfRange(ctx.args(), 1, ctx.args().length);
+                    Location off = CoordResolver.offset(rest, base);          // "x z" / "x y z"
+                    if (off == null) off = CoordResolver.parseWhere(sender, rest, base); // at/here/player/coords
+                    if (off == null) off = CoordResolver.resolvePlayer(String.join(" ", rest));
+                    if (off != null) {
+                        base = off;
+                        sender.sendMessage("§7[" + b.id() + "] Paste target: ("
+                                + base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ() + ")");
+                    }
                 }
                 String name = f.getFileName().toString().replaceFirst("\\.[^.]+$", "");
                 boolean animate = b.memory().get("animate") instanceof Boolean ab && ab;

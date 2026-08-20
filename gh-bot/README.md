@@ -42,8 +42,14 @@
   markers; a `ShelvedSurface` smoke check asserts every shelved command is hard-blocked at dispatch
   and absent from CATALOG/tool-sheet/AI-help. `ToolBridge.LEGACY_ALLOWED` (dead, still listed shelved
   commands) removed — `ALLOWED == CATALOG` is now the single source of truth.
-- Smoke **414 checks** (was 384): +30 for eyes-as-data round-trip, inline truncation, vanilla
-  constraints, heightmap persistence, coordinate parsing, pronoun fallback, shelved surface, admin-only.
+- Smoke **420 checks** (was 384): +36 for eyes-as-data round-trip, inline truncation, vanilla
+  constraints, heightmap persistence, coordinate parsing, pronoun fallback, shelved surface, admin-only,
+  AI-prompt shelved-leak, paste offsets.
+- **Batch-test fixes (2026-08-20 evidence review):** the AI system prompt + capability guide still
+  advertised shelved tools (`where`/`save-location`/`workers`/…/`schem download`) → the model
+  hallucinated them; now trimmed to the 4-pillar surface. `edit the dragon's wings` no longer
+  errors on the determiner ("the") — falls back to `here`. `paste <file> 30 10` now respects
+  the x/z (and x/y/z) offset instead of silently pasting at the origin.
 
 ### What's new in v0.22.0 (JARVIS-FOR-ADMIN — the 4-pillar reset)
 The owner's decisive refocus: GHBot is now a **Jarvis for the Minecraft server, usable by the

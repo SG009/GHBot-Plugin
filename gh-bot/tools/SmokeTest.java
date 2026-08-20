@@ -1725,6 +1725,45 @@ public class SmokeTest {
         check("shelved surface: not advertised anywhere", !shelvedLeak);
         check("admin-only: console is admin", dev.ghbot.command.CommandBridge.isAdminSender(new Sender()));
 
+        // ── v0.22.1 (batch-test fixes) ────────────────────────────────────────
+        // (1) the AI prompt + capability guide must NOT advertise shelved tools —
+        //     the batch test showed the model hallucinating "schem download" /
+        //     "save-location" because the prompt still listed them.
+        boolean promptLeak = false;
+        String sysPrompt = dev.ghbot.ai.ChatService.systemPrompt();
+        String capGuide = dev.ghbot.ai.CapabilityGuide.text();
+        // unambiguous shelved names only — skip common prose words ("add", "design",
+        // "where", "image") that legitimately appear in unrelated sentences.
+        String[] unambiguous = {"save-location", "list-locations", "delete-location",
+                "schem download", "workers", "deploy", "undeploy", "avatar", "marker",
+                "critique", "dataset", "teach", "editspec", "debuglog", "animate"};
+        for (String name : unambiguous) {
+            if (sysPrompt.matches("(?s).*\\b" + java.util.regex.Pattern.quote(name) + "\\b.*")
+                    || capGuide.matches("(?s).*\\b" + java.util.regex.Pattern.quote(name) + "\\b.*")) {
+                promptLeak = true;
+                break;
+            }
+        }
+        check("AI prompt + guide never advertise shelved tools", !promptLeak);
+        // (2) edit natural-language target: "the"/"a"/… falls back to "here"
+        check("edit determiner regex", "the".matches("(?i)(the|a|an|that|this|it|those|these|some|my|our)")
+                && "Dragon's".matches("(?i)(the|a|an|that|this|it|those|these|some|my|our)") == false);
+        // (3) paste offset "x z" and "x y z" resolve (was: ignored → pasted at origin)
+        var off2 = dev.ghbot.terrain.CoordResolver.offset(new String[]{"30", "10"},
+                new org.bukkit.Location(null, 0, 64, 0, 0, 0));
+        check("paste offset x z", off2 != null && off2.getBlockX() == 30 && off2.getBlockZ() == 10
+                && off2.getBlockY() == 64);
+        var off3 = dev.ghbot.terrain.CoordResolver.offset(new String[]{"30", "70", "10"},
+                new org.bukkit.Location(null, 0, 64, 0, 0, 0));
+        check("paste offset x y z", off3 != null && off3.getBlockX() == 30 && off3.getBlockY() == 70
+                && off3.getBlockZ() == 10);
+        check("paste offset non-int returns null",
+                dev.ghbot.terrain.CoordResolver.offset(new String[]{"here"},
+                        new org.bukkit.Location(null, 0, 64, 0, 0, 0)) == null);
+        // scanTarget strips 'at' keyword (regression for the shared parser)
+        var stAt = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"at", "30", "10", "262"}, 20);
+        check("scanTarget strips at", stAt.where() != null && stAt.where().equals("30 10 262"));
+
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")
                 + "  (" + pass + " passed, " + fail + " failed)");
         System.exit(fail == 0 ? 0 : 1);

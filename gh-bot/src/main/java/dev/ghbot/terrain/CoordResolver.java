@@ -95,6 +95,31 @@ public final class CoordResolver {
     public record ScanTarget(int radius, String where) {}
 
     /**
+     * v0.22.1 — "x z" (2 ints) or "x y z" (3 ints) → an offset Location from base;
+     * null otherwise. Used by `paste <file> 30 10` (the batch test showed the AI
+     * passing 2-number x/z offsets that the old paste code silently ignored).
+     * Works headless (Location is a plain data holder).
+     */
+    public static Location offset(String[] args, Location base) {
+        if (base == null || args == null) return null;
+        java.util.List<Integer> ints = new java.util.ArrayList<>();
+        for (String a : args) {
+            if (a != null && a.trim().matches("-?\\d+")) ints.add(Integer.parseInt(a.trim()));
+        }
+        if (ints.size() == 2) {
+            Location l = base.clone();
+            l.setX(ints.get(0)); l.setZ(ints.get(1));
+            return l;
+        }
+        if (ints.size() == 3) {
+            Location l = base.clone();
+            l.setX(ints.get(0)); l.setY(ints.get(1)); l.setZ(ints.get(2));
+            return l;
+        }
+        return null;
+    }
+
+    /**
      * v0.22.1 — single source of truth for parsing `scan …` args, shared by the
      * in-game command handler AND AutoTools (so they can never drift apart):
      *   0 ints  → default radius, where = any words (here/me/player)

@@ -26,12 +26,12 @@ public final class CapabilityGuide {
             • edit <target> <instruction>       — modify an existing build. Target = a LOCATION/PLAYER
               (e.g. "here", a player name, or x y z), NOT a viewer job-id.
             • schem <name> <prompt>             — design + export a schematic (Sponge/Classic/Litematica/NBT)
-            • schem download <name> <url>       — download a schematic into the library
-            • paste <file>                      — paste a schematic in-world
+            • schem import <file>               — import a schematic into the library
+            • paste <file> [at <x y z>|here|player] — paste a schematic in-world (offset respected)
             • library                           — list saved schematics (use THIS tool, not cmd library)
-            • scan <radius> [x y z]             — terrain summary (ground, heightmap, blocks, water)
-            • find <block> [radius] [x y z]     — locate blocks of a type (coords optional, default bot origin)
-            • look <x> <y> <z>                  — inspect a block
+            • scan [radius] [at <x y z>] [--full [depth]] — terrain summary + a JSON world spec
+            • find <block> [radius] [x y z]     — locate blocks of a type (returns exact coords)
+            • look <x> <y> <z>                  — inspect a block (returns its blockstate)
             • set <block> <radius> / replace <from> <to> / terraform <smooth|flatten|raise|lower> <radius>
                                     • approve / deny / redo / undo / cancel
             • provider list|set <name>          — switch AI provider at runtime
@@ -51,7 +51,7 @@ public final class CapabilityGuide {
             IMPORTANT: GH-bot's OWN tools (library, scan, find, build, view, admin,
             approve/deny/redo, etc.) are called DIRECTLY as their own tool (e.g. ⟦tool:library⟧),
             NOT via cmd. Use `cmd` only for real server/plugin commands (e.g. `cmd lp listgroups`,
-            `cmd plugins`, `cmd gh save-location`). cmd library FAILS — use ⟦tool:library⟧.
+            `cmd plugins`). cmd library FAILS — use ⟦tool:library⟧.
             • Systemic commands (stop/reload/op/deop/ban/whitelist/rm -rf…) are ALWAYS BLOCKED and
               mint a CONF-… token. NEVER run them. You cannot bypass it.
             • When the USER provides a CONF-… token (e.g. types "CONF-1234-567"), call
