@@ -1,0 +1,258 @@
+[14:11:42] [ServerMain/INFO]: [bootstrap] Running Java 21 (Java HotSpot(TM) 64-Bit Server VM 21.0.10+8-LTS-217; Oracle Corporation null) on Linux 6.17.0-PRoot-Distro (aarch64)
+[14:11:42] [ServerMain/INFO]: [bootstrap] Loading Paper 1.21.11-132-ver/1.21.11@c5eb079 (2026-05-11T11:43:09Z) for Minecraft 1.21.11
+[14:11:44] [ServerMain/INFO]: [PluginInitializerManager] Initializing plugins...
+[14:11:47] [Paper Plugin Remapper Thread - 2/INFO]: [PluginRemapper] Remapping plugin 'plugins/GHBot-0.22.0.jar'...
+[14:11:49] [Paper Plugin Remapper Thread - 2/INFO]: [PluginRemapper] Done remapping plugin 'plugins/GHBot-0.22.0.jar' in 2709ms.
+[14:11:51] [ServerMain/INFO]: [PluginInitializerManager] Initialized 8 plugins
+[14:11:51] [ServerMain/INFO]: [PluginInitializerManager] Bukkit plugins (8):
+ - Essentials (2.22.0), GHBot (0.22.0), Geyser-Spigot (2.11.1-SNAPSHOT), Vault (1.7.3-b131), ViaBackwards (5.11.0), ViaRewind (4.1.3), ViaVersion (5.11.0), floodgate (2.2.5-SNAPSHOT (b140-8780fa4))
+[14:12:14] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[14:12:15] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Initialising converters for DataConverter...
+[14:12:17] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Finished initialising converters for DataConverter in 2,858.6ms
+[14:12:25] [ServerMain/INFO]: Loaded 1470 recipes
+[14:12:26] [ServerMain/INFO]: Loaded 1584 advancements
+[14:12:26] [Server thread/INFO]: Starting minecraft server version 1.21.11
+[14:12:26] [Server thread/INFO]: Loading properties
+[14:12:27] [Server thread/INFO]: This server is running Paper version 1.21.11-132-ver/1.21.11@c5eb079 (2026-05-11T11:43:09Z) (Implementing API version 1.21.11-R0.1-SNAPSHOT)
+[14:12:27] [Server thread/INFO]: [spark] This server bundles the spark profiler. For more information please visit https://docs.papermc.io/paper/profiling
+[14:12:27] [Server thread/INFO]: Server Ping Player Sample Count: 12
+[14:12:27] [Server thread/INFO]: Using 4 threads for Netty based IO
+[14:12:31] [Server thread/INFO]: [MoonriseCommon] Paper is using 2 worker threads, 1 I/O threads
+[14:12:32] [Server thread/INFO]: Default game type: SURVIVAL
+[14:12:32] [Server thread/INFO]: Generating keypair
+[14:12:32] [Server thread/INFO]: Starting Minecraft server on *:25565
+[14:12:33] [Server thread/INFO]: Paper: Using libdeflate (Linux aarch64) compression from Velocity.
+[14:12:33] [Server thread/INFO]: Paper: Using OpenSSL 3.x.x (Linux aarch64) cipher from Velocity.
+[14:12:33] [Server thread/WARN]: [io.netty.util.internal.MacAddressUtil] Failed to find a usable hardware address from the network interfaces; using random bytes: b8:24:c1:d5:d7:d9:4d:02
+[14:12:36] [Server thread/INFO]: [ViaVersion] Loading server plugin ViaVersion v5.11.0
+[14:12:36] [Server thread/INFO]: [ViaVersion] ViaVersion 5.11.0 is now loaded. Registering protocol transformers and injecting...
+[14:12:42] [Server thread/INFO]: [ViaBackwards] Loading translations...
+[14:12:42] [Server thread/INFO]: [ViaBackwards] Registering protocols...
+[14:12:45] [Server thread/INFO]: [ViaRewind] Registering protocols...
+[14:12:46] [Server thread/INFO]: [floodgate] Loading server plugin floodgate v2.2.5-SNAPSHOT (b140-8780fa4)
+[14:12:51] [Server thread/INFO]: [floodgate] Took 4,915ms to boot Floodgate
+[14:12:51] [Server thread/INFO]: [Vault] Loading server plugin Vault v1.7.3-b131
+[14:12:51] [Server thread/INFO]: [ViaBackwards] Loading server plugin ViaBackwards v5.11.0
+[14:12:51] [Server thread/INFO]: [Geyser-Spigot] Loading server plugin Geyser-Spigot v2.11.1-SNAPSHOT
+[14:12:53] [Server thread/INFO]: [Geyser-Spigot] Loading extensions...
+[14:12:53] [Server thread/INFO]: [Geyser-Spigot] Loaded 0 extension(s)
+[14:12:53] [Server thread/INFO]: [Essentials] Loading server plugin Essentials v2.22.0
+[14:12:53] [Server thread/INFO]: [ViaRewind] Loading server plugin ViaRewind v4.1.3
+[14:12:53] [Server thread/INFO]: [GHBot] Loading server plugin GHBot v0.22.0
+[14:12:53] [Server thread/INFO]: Server permissions file permissions.yml is empty, ignoring it
+[14:12:53] [Server thread/INFO]: [Vault] Enabling Vault v1.7.3-b131
+[14:12:53] [Server thread/INFO]: [Vault] [Economy] Essentials Economy found: Waiting
+[14:12:54] [Server thread/INFO]: [Vault] [Permission] SuperPermissions loaded as backup permission system.
+[14:12:54] [Server thread/INFO]: [Vault] Enabled Version 1.7.3-b131
+[14:12:54] [Server thread/INFO]: [ViaRewind] Enabling ViaRewind v4.1.3
+[14:12:54] [Server thread/WARN]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[14:12:54] [Server thread/WARN]: The server will make no attempt to authenticate usernames. Beware.
+[14:12:54] [Server thread/WARN]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[14:12:54] [Server thread/WARN]: To change this, set "online-mode" to "true" in the server.properties file.
+[14:12:54] [Server thread/INFO]: Preparing level "worlds/hub"
+[14:12:57] [Server thread/INFO]: Loading 0 persistent chunks for world 'minecraft:overworld'...
+[14:12:57] [Server thread/INFO]: Preparing spawn area: 100%
+[14:12:57] [Server thread/INFO]: Prepared spawn area in 6 ms
+[14:12:57] [Server thread/INFO]: Loading 0 persistent chunks for world 'minecraft:the_nether'...
+[14:12:57] [Server thread/INFO]: Preparing spawn area: 100%
+[14:12:57] [Server thread/INFO]: Prepared spawn area in 2 ms
+[14:12:57] [Server thread/INFO]: Loading 0 persistent chunks for world 'minecraft:the_end'...
+[14:12:57] [Server thread/INFO]: Preparing spawn area: 100%
+[14:12:57] [Server thread/INFO]: Prepared spawn area in 2 ms
+[14:12:57] [Server thread/INFO]: Done preparing level "worlds/hub" (2.712s)
+[14:12:57] [Server thread/INFO]: [ViaVersion] Enabling ViaVersion v5.11.0
+[14:12:57] [Server thread/INFO]: [ViaVersion] ViaVersion detected server version: 1.21.11 (774)
+[14:12:57] [Server thread/INFO]: [floodgate] Enabling floodgate v2.2.5-SNAPSHOT (b140-8780fa4)
+[14:13:00] [Server thread/INFO]: [ViaBackwards] Enabling ViaBackwards v5.11.0
+[14:13:00] [Server thread/INFO]: [Geyser-Spigot] Enabling Geyser-Spigot v2.11.1-SNAPSHOT
+[14:13:08] [Server thread/INFO]: [Essentials] Enabling Essentials v2.22.0
+[14:13:09] [Server thread/INFO]: [Essentials] Attempting to convert old kits in config.yml to new kits.yml
+[14:13:09] [Server thread/INFO]: [Essentials] No kits found to migrate.
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.14.4+ Persistent Data Container Provider as the provider for PersistentDataProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.21.4+ Sync Commands Provider as the provider for SyncCommandsProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Tick Count Provider as the provider for TickCountProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.21+ InventoryView Interface ABI Provider as the provider for InventoryViewProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Reflection Formatted Command Alias Provider as the provider for FormattedCommandAliasProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Known Commands Provider as the provider for KnownCommandsProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Biome Key Provider as the provider for BiomeKeyProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.20.4+ Damage Event Provider as the provider for DamageEventProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper 1.13+ Tile Entity Provider as the provider for TileEntityProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.20.5+ Banner Data Provider as the provider for BannerDataProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.20.6+ Potion Meta Provider as the provider for PotionMetaProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.12.2+ Player Locale Provider as the provider for PlayerLocaleProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Serialization Provider as the provider for SerializationProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.8.3+ Spawner Item Provider as the provider for SpawnerItemProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.14+ Sign Data Provider as the provider for SignDataProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Reflection Online Mode Provider as the provider for OnlineModeProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.12+ Spawner Block Provider as the provider for SpawnerBlockProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Legacy Biome Name Provider as the provider for BiomeNameProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.17.1+ World Info Provider as the provider for WorldInfoProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Server State Provider as the provider for ServerStateProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.13+ Spawn Egg Provider as the provider for SpawnEggProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Container Provider as the provider for ContainerProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected Paper Material Tag Provider as the provider for MaterialTagProvider
+[14:13:10] [Server thread/INFO]: [Essentials] Selected 1.11+ Item Unbreakable Provider as the provider for ItemUnbreakableProvider
+[14:13:11] [Server thread/INFO]: [Essentials] Loaded 46312 items from items.json.
+[14:13:11] [Server thread/INFO]: [Essentials] Using locale en_US
+[14:13:12] [Server thread/INFO]: [Essentials] ServerListPingEvent: Spigot iterator API
+[14:13:12] [Server thread/INFO]: [Essentials] Starting Metrics. Opt-out using the global bStats config.
+[14:13:12] [Server thread/INFO]: [Vault] [Economy] Essentials Economy hooked.
+[14:13:12] [Server thread/INFO]: [Essentials] Using superperms-based permissions.
+[14:13:12] [Server thread/INFO]: [GHBot] Enabling GHBot v0.22.0
+[14:13:12] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:12] GH-Bot loading…
+[14:13:12] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:12] Loaded 3 learning sample(s).
+[14:13:13] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:13] Loaded 0 named location(s).
+[14:13:13] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:13] Session restored for GH000 (activity=IDLE)
+[14:13:13] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:13] Web status page listening on http://0.0.0.0:8580/
+[14:13:13] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:13] Enabled in 846ms — 1 bot(s), default gh000
+[14:13:13] [Server thread/INFO]: [GHBot] [2026-08-20 21:13:13] Heads up: running on phone (6–8 GB). Est. smooth ~500 blocks/job (uploaded JSON specs accepted up to 100000 blocks — bigger places slower).
+[14:13:14] [Server thread/INFO]: [spark] Starting background profiler...
+[14:13:15] [Server thread/INFO]: [Geyser-Spigot] ******************************************
+[14:13:15] [Server thread/INFO]: [Geyser-Spigot] 
+[14:13:15] [Server thread/INFO]: [Geyser-Spigot] Loading Geyser version 2.11.1-b1225 (git-master-5f6d017)
+[14:13:15] [Server thread/INFO]: [Geyser-Spigot] 
+[14:13:15] [Server thread/INFO]: [Geyser-Spigot] ******************************************
+[14:13:23] [Server thread/INFO]: [Geyser-Spigot] Registered 199 custom block overrides.
+[14:13:23] [Server thread/INFO]: [Geyser-Spigot] Registered 2 custom block item overrides.
+[14:13:23] [Server thread/INFO]: [Geyser-Spigot] Registered 7 custom blocks.
+[14:13:35] [Server thread/INFO]: [Geyser-Spigot] Registered 1 custom items
+[14:13:39] [GeyserServer-3-1/INFO]: [Geyser-Spigot] Started Geyser on UDP port 19132
+[14:13:39] [Server thread/INFO]: [Geyser-Spigot] Done (23.599s)! Run /geyser help for help!
+[14:13:40] [Server thread/INFO]: Running delayed init tasks
+[14:13:40] [Server thread/INFO]: [Essentials] Essentials found a compatible payment resolution method: Vault Compatibility Layer (v1.7.3-b131)!
+[14:13:40] [Craft Scheduler Thread - 7 - Vault/INFO]: [Vault] Checking for Updates ... 
+[14:13:40] [Craft Scheduler Thread - 6 - Essentials/INFO]: [Essentials] Fetching version information...
+[14:13:40] [Craft Scheduler Thread - 5 - ViaVersion/INFO]: [ViaVersion] Finished mapping loading, shutting down loader executor.
+[14:13:40] [Server thread/INFO]: Done (123.179s)! For help, type "help"
+[14:13:40] [Craft Scheduler Thread - 7 - Vault/INFO]: [Vault] No new version available
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: *************************************************************************************
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: You are running the latest build for your Minecraft version (1.21.11)
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: However, you are 4 release(s) behind the latest stable release (26.2)!
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: It is recommended that you update as soon as possible
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: https://papermc.io/downloads/paper
+[14:13:41] [Paper Async Task Handler Thread - 1/WARN]: *************************************************************************************
+[14:14:04] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:14:04] [GH000] chat streaming via ollama
+[14:14:27] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:14:27] [GH000] chat streaming via ollama
+[14:14:40] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:14:40] [GH000] chat streaming via ollama
+[14:15:39] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:15:39] [GH000] chat streaming via ollama
+[14:16:32] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:16:32] [GH000] chat streaming via ollama
+[14:17:19] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:17:19] [GH000] chat streaming via ollama
+[14:17:21] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:17:21] [GH000] chat streaming via ollama
+[14:19:24] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:19:24] [GH000] chat streaming via ollama
+[14:19:34] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:19:34] Token compression saved 18% on a tool result (1474 → 1207 chars)
+[14:19:36] [Server thread/INFO]: [GHBot] [2026-08-20 21:19:36] [GH] edit unnamed applied (326 blocks)
+[14:20:36] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:20:36] [GH000] chat streaming via ollama
+[14:21:14] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:21:14] [GH000] chat streaming via ollama
+[14:21:19] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:21:19] [GH000] chat streaming via ollama
+[14:21:48] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:21:48] [GH000] chat streaming via ollama
+[14:23:50] [HTTP-Dispatcher/WARN]: [GHBot] generateSpec exception from ollama: request timed out
+[14:23:50] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:23:50] [GH000] chat streaming via ollama
+[14:23:53] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:23:53] [GHBot] stop requested for session samya0ai4
+[14:25:08] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:25:08] [GH000] chat streaming via ollama
+[14:27:04] [Server thread/INFO]: /gh — GH-bot console controls
+  /gh help — this help
+  /gh status — bots + live system stats + capability tier
+  /gh start <Bot> · /gh stop <Bot>
+  /gh debuglog <show|hide> · /gh debuglog <Bot> <show|hide>
+  /gh device-info · /gh di — one-shot stats & capability report
+  /gh reload — re-read config.yml (AI keys/models apply now; bots/web need restart)
+  /gh web — web status URL (Phase 3+)
+  /gh <command> [args] — run any bot command on the default bot
+Example: /gh build a tower at spawn
+[14:27:20] [HTTP-Dispatcher/WARN]: [GHBot] generateSpec exception from ollama: request timed out
+[14:27:20] [HTTP-Dispatcher/INFO]: [GH000] Build failed — the AI couldn't produce a valid build spec for: "an ancient ice dragon coiled on a frost-bitten blackstone pedestal, side by side with the existing bone dragon — packed_ice body, blue_ice accents, snow_block belly and underwing, quartz_block horns and spine spikes, frosted light_blue_stained_glass eyes, with icicle-like wingtips made of packed_ice slabs and pointed tail. Give it a serpentine coiled pose (head raised, wings half-spread), ~28 long x 14 wide x 12 tall, matching the scale of the bone dragon z=0. Place it y=26 z=0 (beside the existing dragon, not overlapping). Style: ancient, crystalline, slightly menacing — opposite vibe to the dark bone dragon.".
+[14:27:20] [HTTP-Dispatcher/INFO]:   Check the server console (logs) for the exact reason, or try a shorter, more specific prompt. The AI provider may be overloaded or the request too complex.
+[14:27:20] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:27:20] [GH000] chat streaming via ollama
+[14:32:00] [HTTP-Dispatcher/WARN]: [GHBot] generateSpec exception from ollama: request timed out
+[14:32:00] [HTTP-Dispatcher/INFO]: [GH000] Build failed — the AI couldn't produce a valid build spec for: "coiled ice dragon on blackstone pedestal y=26 z=0, ~28x14x12 — packed_ice body, blue_ice accents, snow belly, quartz horns and spine spikes, frosted light_blue_stained_glass eyes, icicle packed_ice slab wingtips, serpentine raised-head pose, ancient crystalline menacing style".
+[14:32:00] [HTTP-Dispatcher/INFO]:   Check the server console (logs) for the exact reason, or try a shorter, more specific prompt. The AI provider may be overloaded or the request too complex.
+[14:32:00] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:32:00] [GH000] chat streaming via ollama
+[14:34:38] [HTTP-Dispatcher/WARN]: [GHBot] [2026-08-20 21:34:38] AI provider ollama stream failed — trying next: Ollama HTTP 429: {"StatusCode":429,"Status":"429 Too Many Requests","error":"you (cepifardiansyah) have reached your session usage limit, upgrade for higher limits: https://ollama.com/upgrade (ref: 2e2a7b60-65b0-4d87-a86b-881c7c0e999b)"}
+[14:34:38] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:34:38] [GH000] chat streaming via gemini
+[14:34:41] [HTTP-Dispatcher/WARN]: [GHBot] generateSpec exception from ollama: Ollama HTTP 429: {"error":{"message":"429 Too Many Requests: you (cepifardiansyah) have reached your session usage limit, upgrade for higher limits: https://ollama.com/upgrade (ref: e88c9f9a-a8a5-4fea-b6da-3a6cbec2a1da)","type":"api_error","param":null,"code":null}}
+
+[14:34:41] [HTTP-Dispatcher/INFO]: [GH000] Build failed — the AI couldn't produce a valid build spec for: "ice dragon sculpture made of packed ice and quartz 26 0".
+[14:34:41] [HTTP-Dispatcher/INFO]:   Check the server console (logs) for the exact reason, or try a shorter, more specific prompt. The AI provider may be overloaded or the request too complex.
+[14:34:42] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:34:42] [GHBot] stop requested for session samya0ai4
+[14:37:24] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:37:24] [GH000] chat streaming via ollama
+[14:37:26] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:37:26] [GH000] chat streaming via ollama
+[14:38:04] [pool-24-thread-1/INFO]: [GH000] Nothing staged to approve.
+[14:38:37] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:38:37] [GH000] chat streaming via ollama
+[14:39:01] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:39:01] [GH000] chat streaming via ollama
+[14:39:04] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:39:04] [GH000] chat streaming via ollama
+[14:39:33] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:39:33] [GH000] chat streaming via ollama
+[14:39:36] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:39:36] [GH000] chat streaming via ollama
+[14:42:12] [GeyserServerChild-4-1/INFO]: [Geyser-Spigot] Player connected with username SerthGembel009 (1001)
+[14:42:12] [localSession-7-2/INFO]: [Geyser-Spigot] SerthGembel009 (logged in as: SerthGembel009) has connected to the Java server
+[14:42:19] [Server thread/INFO]: [floodgate] Floodgate player logged in as .SerthGembel009 joined (UUID: 00000000-0000-0000-0009-01f2d8ec4b04)
+[14:42:19] [Server thread/INFO]: .SerthGembel009 joined the game
+[14:42:19] [Server thread/INFO]: .SerthGembel009[/192.168.1.64:0] logged in with entity id 42 at ([worlds/hub]75.25771, 43.00003, 48.604347)
+[14:43:14] [Server thread/INFO]: .SerthGembel009 issued server command: /time set day
+[14:43:14] [Server thread/INFO]: .SerthGembel009 has the following entity data: {seenCredits: 0b, DeathTime: 0s, Bukkit.updateLevel: 2, foodTickTimer: 0, recipeBook: {recipes: ["minecraft:crafting_table"], toBeDisplayed: ["minecraft:crafting_table"]}, XpTotal: 0, OnGround: 0b, AbsorptionAmount: 0.0f, spawn_extra_particles_on_fall: 0b, playerGameType: 3, Invulnerable: 0b, SelectedItemSlot: 0, Brain: {memories: {}}, bukkit: {newTotalExp: 0, newLevel: 0, newExp: 0, keepLevel: 0b, lastPlayed: 1787236994714L, firstPlayed: 1787126602072L, expToDrop: 0, lastKnownName: ".SerthGembel009"}, Dimension: "minecraft:overworld", Paper.Origin: [-4.5d, 47.0d, 0.5d], abilities: {walkSpeed: 0.1f, flySpeed: 0.05f, instabuild: 0b, flying: 1b, mayfly: 1b, invulnerable: 1b, mayBuild: 0b}, Score: 0, Rotation: [-177.7312f, 19.113678f], HurtByTimestamp: 0, foodSaturationLevel: 20.0f, attributes: [{base: 0.10000000149011612d, id: "minecraft:movement_speed"}, {base: 6.0E7d, id: "minecraft:waypoint_transmit_range"}, {base: 3.0d, id: "minecraft:entity_interaction_range"}, {base: 4.5d, id: "minecraft:block_interaction_range"}], WorldUUIDMost: -1954442190812459037L, fall_distance: 0.0d, Paper.OriginWorld: [I; -455054034, -1164554269, -1986190479, 82889652], Paper: {LastLogin: 1787236938235L, LastSeen: 1787236994714L}, previousPlayerGameType: 0, EnderItems: [], Air: 300s, foodLevel: 20, XpSeed: -1580610489, XpLevel: 0, UUID: [I; 0, 0, 590322, -655602940], Spigot.ticksLived: 6674, Inventory: [], Motion: [0.0d, 0.0d, 0.0d], WorldUUIDLeast: -8530623150848685132L, DataVersion: 4671, SleepTimer: 0s, XpP: 0.0f, warden_spawn_tracker: {ticks_since_last_warning: 6674, warning_level: 0, cooldown_ticks: 0}, current_impulse_context_reset_grace_time: 0, Pos: [107.993576d, 43.00003d, 36.67849d], Health: 20.0f, HurtTime: 0s, FallFlying: 0b, Fire: -20s, ignore_fall_damage_from_current_explosion: 0b, PortalCooldown: 0, foodExhaustionLevel: 0.0f, Paper.SpawnReason: "DEFAULT"}
+[14:44:57] [GeyserServerChild-4-1/INFO]: [Geyser-Spigot] SerthGembel009 has disconnected from the Java server because of §rBedrock client disconnected
+[14:44:57] [Server thread/INFO]: .SerthGembel009 lost connection: Disconnected
+[14:44:57] [Geyser Spigot connection thread-6-3/INFO]: [floodgate] Floodgate player logged in as .SerthGembel009 disconnected
+[14:44:57] [Server thread/INFO]: .SerthGembel009 left the game
+[14:47:30] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:47:30] [GH000] deny cleared staged citadel-castle
+[14:47:30] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:47:30] [GH000] chat streaming via ollama
+[14:48:51] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:48:51] [GH000] chat streaming via ollama
+[14:48:53] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:48:53] [GH000] chat streaming via ollama
+[14:48:55] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:48:55] [GH000] chat streaming via ollama
+[14:48:57] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:48:57] Command catalog refreshed: 1597 commands.
+[14:49:42] [pool-24-thread-2/INFO]: [GH000] Nothing staged.
+[14:50:44] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:50:44] [GH000] chat streaming via ollama
+[14:50:49] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:50:49] [GH000] chat streaming via ollama
+[14:51:08] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:51:08] [GH000] chat streaming via ollama
+[14:51:54] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:51:54] [GH000] chat streaming via ollama
+[14:52:04] [Server thread/INFO]: Stopping the server
+[14:52:04] [Server thread/INFO]: Stopping server
+[14:52:04] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:52:04] [GH000] chat streaming via ollama
+[14:52:04] [Server thread/INFO]: [GHBot] Disabling GHBot v0.22.0
+[14:52:06] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:52:06] [GHBot] stop requested for session samya0ai4
+[14:52:06] [HTTP-Dispatcher/WARN]: [GHBot] [2026-08-20 21:52:06] AI provider ollama stream failed — trying next: java.lang.InterruptedException
+[14:52:06] [HTTP-Dispatcher/INFO]: [GHBot] [2026-08-20 21:52:06] [GHBot] stop requested for session samya0ai4
+[14:52:06] [Server thread/INFO]: [GHBot] [2026-08-20 21:52:06] Sessions saved.
+[14:52:06] [Server thread/INFO]: [GHBot] [2026-08-20 21:52:06] GH-Bot disabled.
+[14:52:06] [Server thread/INFO]: [ViaRewind] Disabling ViaRewind v4.1.3
+[14:52:06] [Server thread/INFO]: [Essentials] Disabling Essentials v2.22.0
+[14:52:06] [Server thread/INFO]: [Vault] [Economy] Essentials Economy unhooked.
+[14:52:06] [Server thread/INFO]: [Geyser-Spigot] Disabling Geyser-Spigot v2.11.1-SNAPSHOT
+[14:52:06] [Server thread/INFO]: [Geyser-Spigot] Shutting down Geyser.
+[14:52:07] [Server thread/INFO]: [Geyser-Spigot] Geyser shutdown successfully.
+[14:52:07] [Server thread/INFO]: [ViaBackwards] Disabling ViaBackwards v5.11.0
+[14:52:07] [Server thread/INFO]: [Vault] Disabling Vault v1.7.3-b131
+[14:52:07] [Server thread/INFO]: [floodgate] Disabling floodgate v2.2.5-SNAPSHOT (b140-8780fa4)
+[14:52:07] [Server thread/INFO]: [ViaVersion] Disabling ViaVersion v5.11.0
+[14:52:07] [Server thread/INFO]: [ViaVersion] ViaVersion has been disabled; uninjected the platform and shut down the scheduler.
+[14:52:07] [Server thread/INFO]: Saving players
+[14:52:07] [WebSocketConnectReadThread-256/INFO]: [Geyser-Spigot] The skin uploader has been closed
+[14:52:07] [Server thread/INFO]: Saving worlds
+[14:52:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[worlds/hub]'/minecraft:overworld
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'worlds/hub'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'worlds/hub'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'worlds/hub'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 0 entity chunks, 0 poi chunks in world 'worlds/hub' in 0.04s
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'worlds/hub'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'worlds/hub'
+[14:52:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[worlds/hub_nether]'/minecraft:the_nether
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'worlds/hub_nether'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'worlds/hub_nether'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'worlds/hub_nether'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 0 entity chunks, 0 poi chunks in world 'worlds/hub_nether' in 0.00s
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'worlds/hub_nether'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'worlds/hub_nether'
+[14:52:07] [Server thread/INFO]: Saving chunks for level 'ServerLevel[worlds/hub_the_end]'/minecraft:the_end
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'worlds/hub_the_end'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'worlds/hub_the_end'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'worlds/hub_the_end'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 0 entity chunks, 0 poi chunks in world 'worlds/hub_the_end' in 0.00s
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'worlds/hub_the_end'
+[14:52:07] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'worlds/hub_the_end'
+[14:52:07] [Server thread/INFO]: ThreadedAnvilChunkStorage (hub): All chunks are saved
+[14:52:07] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[14:52:07] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[14:52:07] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
+[14:52:07] [Server thread/INFO]: Waiting for all RegionFile I/O tasks to complete...
+[14:52:07] [Server thread/INFO]: All RegionFile I/O tasks to complete
+[14:52:07] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of worker pool for up to 60s...
+[14:52:07] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of I/O pool for up to 60s...

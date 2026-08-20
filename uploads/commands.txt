@@ -1,0 +1,3 @@
+[2026-08-20 21:51:54] [GH000] cmd → "stop" → BLOCKED (systemic — needs confirm, token=CONF-37514663-568)
+[2026-08-20 21:51:54] [GH000] cmd → "stop" → FAIL
+[2026-08-20 21:52:04] [GH000] cmd → "stop" → ok
