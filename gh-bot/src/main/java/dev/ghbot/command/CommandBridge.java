@@ -127,6 +127,17 @@ public class CommandBridge {
     }
 
     public void dispatch(GHBot bot, CommandSender sender, String name, String[] args) {
+        // v0.22.0 — JARVIS-FOR-ADMIN: hard-block non-ops (console + OP players only).
+        if (sender instanceof org.bukkit.entity.Player p && !p.isOp()) {
+            sender.sendMessage("§cGH-bot is admin-only — console/OP required.");
+            return;
+        }
+        // v0.22.0 — shelved commands are removed from the surface: never run, say so.
+        if (dev.ghbot.command.BotCommands.SHELVED.contains(name)) {
+            sender.sendMessage("§7[" + bot.id() + "] '" + name
+                    + "' is shelved in v0.22.0 (not part of the admin surface).");
+            return;
+        }
         CommandRegistry reg = registries.get(bot.id());
         if (reg == null) {
             sender.sendMessage("§cCommand system not loaded for " + bot.id() + ".");

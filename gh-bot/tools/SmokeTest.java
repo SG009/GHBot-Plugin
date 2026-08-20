@@ -137,11 +137,11 @@ public class SmokeTest {
         s.clear();
         def.memory().put("terrain", "hills");
         bridge.dispatch(def, s, "memory", new String[]{"clear"});
-        check("memory clear works", def.memory().isEmpty() && s.last().contains("Memory cleared"));
+        check("shelved memory blocked", s.last().contains("shelved"));   // v0.22.0
 
         s.clear();
         bridge.dispatch(def, s, "debuglog", new String[]{"show"});
-        check("debuglog show", def.debugLogging() && s.last().contains("Debug logging enabled"));
+        check("shelved debuglog blocked", s.last().contains("shelved"));   // v0.22.0
 
         s.clear();
         bridge.dispatch(def, s, "unknowncmd", new String[0]);
@@ -467,8 +467,7 @@ public class SmokeTest {
         // animate toggle via dispatch
         s.clear();
         bridge.dispatch(def, s, "animate", new String[]{"on"});
-        check("animate on stored", def.memory().get("animate") instanceof Boolean ab && ab);
-        check("animate reply", s.last().contains("animate on"));
+        check("shelved animate blocked", s.last().contains("shelved"));   // v0.22.0
 
         // approve with nothing staged → friendly message
         s.clear();
@@ -944,7 +943,7 @@ public class SmokeTest {
         check("marker command registered", avr.contains("marker"));
         s.clear();
         bridge.dispatch(def, s, "avatar", new String[]{"off"});
-        check("avatar off stored", def.memory().get("avatar") instanceof Boolean bb && !bb);
+        check("shelved avatar blocked", s.last().contains("shelved"));
 
         // 8r) Phase 13 — Archetypes/medium builds
         check("archetype ship", DesignTemplates.pick("build a ship").name.contains("Ship"));
@@ -988,7 +987,7 @@ public class SmokeTest {
         // v0.21.8 — teach accepts a full filename with extension (barn.litematic etc.)
         s.clear();
         bridge.dispatch(def, s, "teach", new String[]{"testbuild.schem"});
-        check("teach resolves filename w/ extension", s.last().contains("Taught") || s.last().contains("Couldn't parse"));
+        check("shelved teach blocked", s.last().contains("shelved"));
 
         // 8u) Phase 9b + 16 — web chat + toggles
         // (reload registry to empty so web-chat tests use the instant rule-based fallback,
@@ -1223,17 +1222,38 @@ public class SmokeTest {
         dev.ghbot.agent.ToolExecutor tex2 = new dev.ghbot.agent.ToolExecutor((n, a) -> "R:" + n);
         check("tool executor runs", tex2.run(new dev.ghbot.agent.ToolProtocol.ToolCall("scan", new String[]{"20"})).contains("R:scan"));
         check("tool protocol help", dev.ghbot.agent.ToolProtocol.helpText().contains("scan"));
+        // v0.22.0 — JARVIS-FOR-ADMIN surface: 4 pillars only; unrelated commands shelved
+        var catNames = dev.ghbot.command.BotCommands.CATALOG.keySet();
+        check("v0.22 catalog has build+scan+admin+cmd", catNames.containsAll(
+                java.util.Set.of("build","plan","edit","paste","export","approve","deny","redo",
+                        "scan","find","look","set","replace","terraform","undo",
+                        "admin","cmd","status","cap","device-info","provider","refresh","confirm","chat","view","cancel","library","schem")));
+        check("v0.22 catalog drops shelved", java.util.Arrays.stream(new String[]{
+                "avatar","marker","workers","deploy","undeploy","where","save-location",
+                "list-locations","delete-location","teach","dataset","critique","design",
+                "image","memory","debuglog","animate","add","editspec"}).noneMatch(catNames::contains));
+        check("v0.22 SHELVED set populated", dev.ghbot.command.BotCommands.SHELVED.containsAll(
+                java.util.Set.of("avatar","workers","where","teach","critique","deploy")));
+        s.clear();
+        bridge.dispatch(def, s, "workers", new String[0]);
+        check("v0.22 shelved dispatch blocked", s.last().contains("shelved"));
+
         // v0.21.6 — expanded technician toolset
         String helpText = dev.ghbot.agent.ToolProtocol.helpText();
         check("tool help has find+plan+edit", helpText.contains("find <block>") && helpText.contains("plan <prompt")
                 && helpText.contains("edit <target>"));
         check("tool help has schem+paste+terraform", helpText.contains("schem <name>") && helpText.contains("paste")
                 && helpText.contains("terraform"));
-        check("tool help has workers+locations+admin ops", helpText.contains("workers")
-                && helpText.contains("list-locations") && helpText.contains("admin <op>"));
+        check("tool help has admin+cmd+view", helpText.contains("admin <op>")
+                && helpText.contains("cmd <command") && helpText.contains("view"));
+        // v0.22.0 — shelved tools no longer advertised
+        check("tool help drops shelved tools", !helpText.contains("workers")
+                && !helpText.contains("list-locations") && !helpText.contains("avatar")
+                && !helpText.contains("deploy") && !helpText.contains("marker"));
         check("tool bridge allowed set", dev.ghbot.agent.ToolBridge.ALLOWED.contains("plan")
                 && dev.ghbot.agent.ToolBridge.ALLOWED.contains("schem")
-                && dev.ghbot.agent.ToolBridge.ALLOWED.contains("workers"));
+                && dev.ghbot.agent.ToolBridge.ALLOWED.contains("paste")
+                && !dev.ghbot.agent.ToolBridge.ALLOWED.contains("workers"));   // v0.22.0 shelved
         check("tool bridge rejects unknown", !dev.ghbot.agent.ToolBridge.ALLOWED.contains("stop"));
         // ToolBridge.run captures command output via the bridge (commands registered earlier)
         String planOut = dev.ghbot.agent.ToolBridge.run(bridge, def, "plan", new String[]{"a small hut"});
@@ -1281,21 +1301,24 @@ public class SmokeTest {
         check("tool bridge allows review cmds", dev.ghbot.agent.ToolBridge.ALLOWED.contains("approve")
                 && dev.ghbot.agent.ToolBridge.ALLOWED.contains("deny") && dev.ghbot.agent.ToolBridge.ALLOWED.contains("redo"));
 
-        // v0.21.14 — single source of truth: catalog covers all surfaces, incl. library
-        check("catalog has library+dataset+teach", dev.ghbot.command.BotCommands.CATALOG.containsKey("library")
-                && dev.ghbot.command.BotCommands.CATALOG.containsKey("dataset")
-                && dev.ghbot.command.BotCommands.CATALOG.containsKey("teach"));
+        // v0.21.14/v0.22.0 — single source of truth: catalog covers the ADMIN surface
+        // (v0.22.0: dataset/teach/schem-download shelved → catalog drops them)
+        check("catalog has library+paste+export", dev.ghbot.command.BotCommands.CATALOG.containsKey("library")
+                && dev.ghbot.command.BotCommands.CATALOG.containsKey("paste")
+                && dev.ghbot.command.BotCommands.CATALOG.containsKey("export"));
         check("catalog toolSheet has library", dev.ghbot.command.BotCommands.toolSheet().contains("library")
-                && dev.ghbot.command.BotCommands.toolSheet().contains("schem download"));
+                && dev.ghbot.command.BotCommands.toolSheet().contains("schem import")
+                && !dev.ghbot.command.BotCommands.toolSheet().contains("schem download"));
         check("tool bridge allows full catalog", dev.ghbot.agent.ToolBridge.ALLOWED.containsAll(dev.ghbot.command.BotCommands.CATALOG.keySet()));
-        // every command the bot registers must exist in the catalog (no drift between help & tools)
+        // every command the bot registers must exist in the catalog OR be shelved (no drift)
         boolean allInCatalog = true;
         for (String n : bridge.registryOf(def).names()) {
-            if (!dev.ghbot.command.BotCommands.CATALOG.containsKey(n)) { allInCatalog = false; break; }
+            if (!dev.ghbot.command.BotCommands.CATALOG.containsKey(n)
+                    && !dev.ghbot.command.BotCommands.SHELVED.contains(n)) { allInCatalog = false; break; }
         }
-        check("all registered commands in catalog (no drift)", allInCatalog);
-        // ToolBridge allows the full catalog so web-console tools == in-game commands
-        check("tool bridge full catalog", dev.ghbot.agent.ToolBridge.ALLOWED.size() >= 45);
+        check("all registered commands in catalog or shelved (no drift)", allInCatalog);
+        // ToolBridge allows the admin-surface catalog so web-console tools == in-game commands
+        check("tool bridge admin surface size", dev.ghbot.agent.ToolBridge.ALLOWED.size() >= 28);
 
         // v0.21.15 — catalog tool + auto-detect "what commands"
         var c1 = dev.ghbot.agent.AutoTools.detect("what commands do you have?");

@@ -350,14 +350,13 @@ public class WebStatusServer {
 
     /** Curated GH-bot command cheat-sheet fed to the local secretary so its drafts fit the technician. */
     private static final String KEY_COMMANDS =
-            "build <prompt> [--direct] [at <where>] · plan <prompt> · edit <target|here> <instruction> · "
-            + "scan <radius|here|player> · look <x> <y> <z> · find <block> · set <block> <radius> · replace <from> <to> <radius> · "
-            + "terraform <smooth|flatten|raise|lower> <radius> · undo [minutes] · schem <name> <prompt> | schem download <name> <url> | schem import <file> · "
-            + "teach <name> [staged] · dataset list|remove|clear · critique · chat <msg> · design <prompt> · "
-            + "admin read|set|backup|restore|rollback|reload|menu · deploy <id> [role] · undeploy <id> · workers · "
-            + "avatar on|off · marker <name> · save-location <name> · list-locations · where <name> · "
-            + "provider list|set · refresh · cmd <line> [; line; …] (multi-step, e.g. LuckPerms rank setup) · "
-            + "confirm <CONF-token> · cap · memory clear · cancel · "
+            // v0.22.0 — JARVIS-FOR-ADMIN surface (4 pillars). Shelved commands removed.
+            "build <prompt> [--direct] · plan <prompt> · edit <target|here> <instruction> · "
+            + "scan <radius> · look <x> <y> <z> · find <block> · set <block> <radius> · replace <from> <to> <radius> · "
+            + "terraform <smooth|flatten|raise|lower> <radius> · undo [minutes] · schem <name> <prompt> | schem import <file> · "
+            + "paste <file> · library · export <name> · approve | deny | redo · chat <msg> · "
+            + "admin read|set|backup|restore|rollback|reload|menu · cmd <line> [; line; …] (multi-step, e.g. LuckPerms rank setup) · "
+            + "provider list|set · refresh · confirm <CONF-token> · status · cap · view · "
             + "SERVER FILES editable via admin set (also rollback-able): server.properties (motd, resource-pack), "
             + "bukkit.yml, spigot.yml, paper-global.yml, paper-world-defaults.yml";
 

@@ -72,26 +72,7 @@ public final class AutoTools {
                     "look " + ml.group(1) + " " + ml.group(2) + " " + ml.group(3));
         }
 
-        // ── where / locations ──
-        Matcher mw = Pattern.compile("^where\\s+(\\S+)").matcher(low);
-        if (mw.find()) return new Call("where", new String[]{mw.group(1)}, "where " + mw.group(1));
-        if (low.matches(".*(list(-| )locations|where are (my )?saved locations).*")) {
-            return new Call("list-locations", new String[0], "list-locations");
-        }
-        Matcher ms = Pattern.compile("^save(-| )location\\s+(\\S+)").matcher(low);
-        if (ms.find()) return new Call("save-location", new String[]{ms.group(2)}, "save-location " + ms.group(2));
-
-        // ── workers / deploy / undeploy ──
-        if (low.matches("^(workers|list bots|list workers).*")) return new Call("workers", new String[0], "workers");
-        Matcher md = Pattern.compile("^deploy\\s+(\\S+)(?:\\s+(\\S+))?").matcher(low);
-        if (md.find()) {
-            String[] args = md.group(2) != null ? new String[]{md.group(1), md.group(2)} : new String[]{md.group(1)};
-            return new Call("deploy", args, "deploy " + String.join(" ", args));
-        }
-        Matcher mu = Pattern.compile("^undeploy\\s+(\\S+)").matcher(low);
-        if (mu.find()) return new Call("undeploy", new String[]{mu.group(1)}, "undeploy " + mu.group(1));
-
-        // ── review: deny / approve / redo (staged build) — plain words trigger them ──
+        // v0.22.0 — where/locations SHELVED (removed from the surface)\n        // v0.22.0 — workers/deploy/undeploy SHELVED\n        // ── review: deny / approve / redo (staged build) — plain words trigger them ──
         boolean isQuestion = low.contains("?") || low.contains("how do i") || low.contains("how to")
                 || low.startsWith("can you") || low.contains("what is");
         if (low.matches(".*\\bdeny\\b.*") && !isQuestion) {
@@ -110,11 +91,7 @@ public final class AutoTools {
             return new Call("approve", new String[0], "approve");
         }
 
-        // ── marker / avatar / critique / cancel / undo ──
-        Matcher mm = Pattern.compile("^marker\\s+(\\S+)").matcher(low);
-        if (mm.find()) return new Call("marker", new String[]{mm.group(1)}, "marker " + mm.group(1));
-        if (low.matches("^avatar\\s+(on|off).*")) return new Call("avatar", new String[]{low.matches(".*\\bon\\b.*") ? "on" : "off"}, "avatar " + (low.matches(".*\\bon\\b.*") ? "on" : "off"));
-        if (low.startsWith("critique")) return new Call("critique", new String[0], "critique");
+        // v0.22.0 — marker/avatar/critique SHELVED (undo/cancel kept)
         if (low.matches("^undo.*")) return new Call("undo", new String[0], "undo");
         if (low.matches("^cancel.*")) return new Call("cancel", new String[0], "cancel");
 

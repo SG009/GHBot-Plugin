@@ -33,9 +33,7 @@ public final class CapabilityGuide {
             • find <block> [radius] [x y z]     — locate blocks of a type (coords optional, default bot origin)
             • look <x> <y> <z>                  — inspect a block
             • set <block> <radius> / replace <from> <to> / terraform <smooth|flatten|raise|lower> <radius>
-            • where <name> / list-locations / save-location <name>   — named locations
-            • workers / deploy <id> [role] / undeploy <id>            — bot crews
-            • marker <name> / avatar <on|off> / critique / approve / deny / redo / undo / cancel
+                                    • approve / deny / redo / undo / cancel
             • provider list|set <name>          — switch AI provider at runtime
             • refresh                           — re-learn the server's command catalog
 
@@ -50,7 +48,7 @@ public final class CapabilityGuide {
             ── SERVER COMMAND CATALOG ──
             • catalog [keyword]                 — browse ALL server commands (from /help + plugins)
             • cmd <command> [; cmd2]            — run any SERVER command as console; MULTI via ';'
-            IMPORTANT: GH-bot's OWN tools (library, scan, find, build, view, admin, workers, marker,
+            IMPORTANT: GH-bot's OWN tools (library, scan, find, build, view, admin,
             approve/deny/redo, etc.) are called DIRECTLY as their own tool (e.g. ⟦tool:library⟧),
             NOT via cmd. Use `cmd` only for real server/plugin commands (e.g. `cmd lp listgroups`,
             `cmd plugins`, `cmd gh save-location`). cmd library FAILS — use ⟦tool:library⟧.

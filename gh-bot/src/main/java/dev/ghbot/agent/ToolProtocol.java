@@ -43,15 +43,6 @@ public final class ToolProtocol {
                 - set <block> <radius>   — set a region of blocks
                 - replace <from> <to> [radius] — swap block types in a region
                 - terraform <smooth|flatten|raise|lower> <radius> — terrain edits
-                - where <name>           — coordinates of a saved location
-                - list-locations         — all saved locations
-                - save-location <name>   — save the current spot as a location
-                - workers                — list deployed bots
-                - deploy <id> [role]     — deploy a worker bot
-                - undeploy <id>          — remove a worker bot
-                - marker <name>          — place a waypoint marker
-                - avatar <on|off>        — toggle the Enderman avatar
-                - critique               — critique the staged build
                 - cmd <command...>       — run server commands as console (audited). Separate multiple
                                            commands with ';' in ONE call (e.g. ⟦tool:cmd lp creategroup PRO;
                                            lp group PRO parent add default; lp group PRO meta addprefix 1000 "…"⟧).
