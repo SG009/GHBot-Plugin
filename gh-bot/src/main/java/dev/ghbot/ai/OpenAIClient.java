@@ -20,6 +20,33 @@ public class OpenAIClient implements AIClient {
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8)).build();
 
+    // v0.21.44 — cancellable HTTP (web console Stop button aborts the in-flight request).
+    private volatile java.util.concurrent.CompletableFuture<?> inFlight;
+    private volatile boolean cancelled;
+
+    @Override
+    public void cancelActiveCall() {
+        cancelled = true;
+        var f = inFlight;
+        if (f != null) f.cancel(true);
+    }
+
+    private <T> HttpResponse<T> sendCall(HttpRequest req, HttpResponse.BodyHandler<T> handler) throws Exception {
+        cancelled = false;
+        var f = http.sendAsync(req, handler);
+        inFlight = f;
+        try {
+            return f.get();
+        } catch (java.util.concurrent.CancellationException ce) {
+            throw new RuntimeException(id() + ": request cancelled");
+        } catch (java.util.concurrent.ExecutionException ee) {
+            if (ee.getCause() instanceof Exception e) throw e;
+            throw ee;
+        } finally {
+            inFlight = null;
+        }
+    }
+
     public OpenAIClient(boolean enabled, String model, String apiKey, String baseUrl) {
         this(enabled, model, apiKey, baseUrl, "openai", "OpenAI");
     }
@@ -63,7 +90,7 @@ public class OpenAIClient implements AIClient {
                 .build();
 
         java.net.http.HttpResponse<java.io.InputStream> resp =
-                http.send(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
+                sendCall(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
         if (resp.statusCode() != 200) {
             String err = new String(resp.body().readAllBytes(), StandardCharsets.UTF_8);
             throw new RuntimeException("OpenAI HTTP " + resp.statusCode() + ": " + GeminiClient.truncate(err));
@@ -72,6 +99,7 @@ public class OpenAIClient implements AIClient {
         try (var br = new java.io.BufferedReader(new java.io.InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
+                if (cancelled) throw new RuntimeException(id() + ": request cancelled");   // v0.21.44
                 if (!line.startsWith("data:")) continue;
                 String json = line.substring(5).trim();
                 if (json.isEmpty() || json.equals("[DONE]")) continue;
@@ -116,7 +144,7 @@ public class OpenAIClient implements AIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendCall(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (resp.statusCode() != 200) {
             throw new RuntimeException("OpenAI HTTP " + resp.statusCode() + ": " + GeminiClient.truncate(resp.body()));
         }

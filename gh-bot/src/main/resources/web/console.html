@@ -46,6 +46,7 @@
   input:focus{border-color:var(--acc)}
   button{background:var(--acc);color:#0a0a0a;border:0;border-radius:999px;padding:11px 18px;font-family:inherit;font-weight:700;cursor:pointer}
   #upBtn{background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:10px 12px;font-size:16px;border-radius:999px;line-height:1}
+  #sendBtn.stop{background:#a33;color:#fff}   /* v0.21.44 — Stop state */
   button:disabled{opacity:.45;cursor:default}
   #side{width:250px;border-left:1px solid var(--line);padding:12px 14px;overflow-y:auto;font-size:12px}
   #side h3{font-size:10px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;margin:10px 0 6px}
@@ -104,7 +105,7 @@
     <div id="row">
       <button id="upBtn" onclick="document.getElementById('upFile').click()" title="Upload a .json build spec or an image (GH-bot reads it)">📎</button>
       <input type="file" id="upFile" accept=".json,.png,.jpg,.jpeg,.webp,.gif" style="display:none">
-      <input id="in" placeholder="Ask or command GH-bot…" autofocus><button onclick="send()">Send</button>
+      <input id="in" placeholder="Ask or command GH-bot…" autofocus><button id="sendBtn" onclick="send()">Send</button>
     </div>
   </div>
   <div id="side"><h3>System</h3><div id="sys"></div><h3>Bots</h3><div id="bots"></div></div>
@@ -167,14 +168,29 @@ function renderMd(t){
 function add(cls,txt){ return addBubble(cls==='u'?'user':'bot', txt, cls==='b'?'':cls); }
 
 let busy=false;
+let currentAbort=null;   // v0.21.44 — Stop button: abort controller for the in-flight fetch
+const sendBtn=document.getElementById('sendBtn');
+// v0.21.44 — while a request is running the Send button becomes STOP (like ChatGPT/Claude).
+function setSendStop(){
+  sendBtn.textContent = busy ? 'Stop' : 'Send';
+  sendBtn.classList.toggle('stop', busy);
+}
 async function send(){
-  const t=inp.value.trim(); if(!t||busy) return;
-  inp.value=''; busy=true;
+  if(busy){ doStop(); return; }   // button is now Stop — cancel the running request
+  const t=inp.value.trim(); if(!t) return;
+  inp.value=''; busy=true; setSendStop();
   add('u',t);
   try{ if(localEngine){ await sendLocal(t); } else { await sendToTechnician(t); } }
-  finally{ busy=false; }
+  finally{ busy=false; setSendStop(); }
 }
-async function q(t){ if(busy) return; busy=true; add('u',t); try{ await sendToTechnician(t); }finally{ busy=false; } }
+async function q(t){ if(busy) return; busy=true; setSendStop(); add('u',t); try{ await sendToTechnician(t); }finally{ busy=false; setSendStop(); } }
+// v0.21.44 — Stop: tell the server to abort the AI call (saves provider tokens), then drop
+// the client connection. Server-side cancel works even for hanging plan/build calls.
+async function doStop(){
+  try{ await fetch('/api/cancel?session='+sessionId,{method:'POST'}); }catch(e){}
+  if(currentAbort){ try{ currentAbort.abort(); }catch(e){} }
+  add('b','⏹ **Stopped.** Request cancelled — no more tokens burned.');
+}
 inp.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 
 // keep the input row visible above the phone keyboard
@@ -186,8 +202,10 @@ fixViewport();
 async function sendToTechnician(t){
   const think=add('thinking','…');
   let bubble=null, buf='';
+  const ctrl=new AbortController(); currentAbort=ctrl;   // v0.21.44 — Stop button
   try{
-    const r=await fetch('/chat?msg='+encodeURIComponent(t)+'&session='+sessionId+'&stream=1',{method:'POST'});
+    const r=await fetch('/chat?msg='+encodeURIComponent(t)+'&session='+sessionId+'&stream=1',
+      {method:'POST', signal:ctrl.signal});
     if(!r.ok || !r.body){ think.textContent='Error '+r.status; return; }
     const reader=r.body.getReader();
     const dec=new TextDecoder();
@@ -241,7 +259,11 @@ async function sendToTechnician(t){
       }
     }
     if(!bubble && think.parentNode) think.remove();
-  }catch(e){ think.textContent='Error: '+e; }
+  }catch(e){
+    // v0.21.44 — aborted by the Stop button: doStop already showed "Stopped"; just tidy up.
+    if(ctrl.signal.aborted){ if(think.parentNode) think.remove(); }
+    else think.textContent='Error: '+e;
+  }finally{ if(currentAbort===ctrl) currentAbort=null; }
 }
 
 // ── v0.21.40 — upload button: .json build spec → staged directly (no paste into the
@@ -249,7 +271,7 @@ async function sendToTechnician(t){
 async function uploadFile(f){
   if(!f || busy) return;
   const isImg=f.type.startsWith('image/');
-  busy=true;
+  busy=true; setSendStop();
   add('u', (isImg?'🖼️ ':'📄 ')+'**'+escHtml(f.name)+'** ('+fmtSize(f.size)+')');
   const think=add('thinking', isImg?'Reading image…':'Parsing build spec…');
   try{
@@ -269,7 +291,7 @@ async function uploadFile(f){
     }
   }catch(e){
     think.remove(); add('bot','⚠️ Upload error: '+e);
-  }finally{ busy=false; }
+  }finally{ busy=false; setSendStop(); }
 }
 function fmtSize(n){ return n>=1048576?(n/1048576).toFixed(1)+' MB' : n>=1024?(n/1024).toFixed(1)+' KB' : n+' B'; }
 document.getElementById('upFile').addEventListener('change', ev=>{
@@ -489,7 +511,7 @@ function renderDraftCard(draft){
   const tag=document.createElement('div'); tag.className='tag'; tag.textContent='✉ secretary draft — review / edit / send to technician';
   const ta=document.createElement('textarea'); ta.value=draft; ta.rows=Math.max(2, Math.min(5, draft.split('\n').length));
   const btn=document.createElement('button'); btn.textContent='📨 Send to technician';
-  btn.onclick=()=>{ add('u',ta.value); card.remove(); busy=true; sendToTechnician(ta.value).finally(()=>busy=false); };
+  btn.onclick=()=>{ add('u',ta.value); card.remove(); busy=true; setSendStop(); sendToTechnician(ta.value).finally(()=>{busy=false; setSendStop();}); };
   card.appendChild(tag); card.appendChild(ta); card.appendChild(btn);
   log.appendChild(card); log.scrollTop=log.scrollHeight;
 }

@@ -39,7 +39,32 @@ public final class SchematicImporter {
         int w = ((Number) root.get("Width")).intValue();
         int h = ((Number) root.get("Height")).intValue();
         int d = ((Number) root.get("Length")).intValue();
-        List<?> palette = (List<?>) root.get("Palette");
+        // v0.21.44 — Sponge v2 stores Palette as a LIST, v3 as a COMPOUND (index → blockstate).
+        // The old code only handled the list and threw ClassCastException on .schem (v3) imports.
+        java.util.Map<Integer, String> palette = new java.util.HashMap<>();
+        Object palObj = root.get("Palette");
+        if (palObj instanceof java.util.List<?> palList) {
+            for (int i = 0; i < palList.size(); i++) {
+                Object e = palList.get(i);
+                if (e instanceof java.util.Map<?, ?> em) {
+                    Object name = em.get("Name");
+                    if (name != null) palette.put(i, String.valueOf(name).replace("minecraft:", ""));
+                }
+            }
+        } else if (palObj instanceof java.util.Map<?, ?> palMap) {
+            for (var en : palMap.entrySet()) {
+                int idx;
+                if (en.getKey() instanceof Number n) idx = n.intValue();
+                else if (en.getKey() instanceof String s) {
+                    try { idx = Integer.parseInt(s.trim()); } catch (NumberFormatException nfe) { continue; }
+                } else continue;
+                Object v = en.getValue();
+                if (v instanceof java.util.Map<?, ?> vm) {
+                    Object name = vm.get("Name");
+                    if (name != null) palette.put(idx, String.valueOf(name).replace("minecraft:", ""));
+                }
+            }
+        }
         byte[] blockData = (byte[]) root.get("BlockData");
         if (blockData == null) blockData = new byte[w * h * d];
 
@@ -50,12 +75,8 @@ public final class SchematicImporter {
                     int idx = (x * d + z) * h + y;
                     if (idx >= blockData.length) continue;
                     int pid = blockData[idx] & 0xFF;
-                    if (pid >= palette.size()) continue;
-                    Map<?, ?> entry = (Map<?, ?>) palette.get(pid);
-                    Object name = entry.get("Name");
-                    if (name == null) continue;
-                    String block = String.valueOf(name).replace("minecraft:", "");
-                    if (block.equals("air")) continue;
+                    String block = palette.get(pid);
+                    if (block == null || block.equals("air")) continue;
                     m.set(x, y, z, block);
                 }
         return m;

@@ -23,6 +23,34 @@ public class OllamaClient implements AIClient {
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
 
+    // v0.21.44 — cancellable HTTP (web console Stop button aborts the in-flight request).
+    private volatile java.util.concurrent.CompletableFuture<?> inFlight;
+    private volatile boolean cancelled;
+
+    @Override
+    public void cancelActiveCall() {
+        cancelled = true;
+        var f = inFlight;
+        if (f != null) f.cancel(true);
+    }
+
+    private <T> java.net.http.HttpResponse<T> sendCall(HttpRequest req,
+            java.net.http.HttpResponse.BodyHandler<T> handler) throws Exception {
+        cancelled = false;
+        var f = http.sendAsync(req, handler);
+        inFlight = f;
+        try {
+            return f.get();
+        } catch (java.util.concurrent.CancellationException ce) {
+            throw new RuntimeException(id() + ": request cancelled");
+        } catch (java.util.concurrent.ExecutionException ee) {
+            if (ee.getCause() instanceof Exception e) throw e;
+            throw ee;
+        } finally {
+            inFlight = null;
+        }
+    }
+
     /** v0.21.36 — toggle Ollama's constrained JSON decoding (guarantees valid JSON output). */
     public void setJsonMode(boolean on) { this.jsonMode = on; }
 
@@ -62,7 +90,7 @@ public class OllamaClient implements AIClient {
                 .build();
 
         java.net.http.HttpResponse<java.io.InputStream> resp =
-                http.send(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
+                sendCall(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
         if (resp.statusCode() != 200) {
             String err = new String(resp.body().readAllBytes(), StandardCharsets.UTF_8);
             throw new RuntimeException("Ollama HTTP " + resp.statusCode() + ": " + GeminiClient.truncate(err));
@@ -71,6 +99,7 @@ public class OllamaClient implements AIClient {
         try (var br = new java.io.BufferedReader(new java.io.InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
+                if (cancelled) throw new RuntimeException(id() + ": request cancelled");   // v0.21.44
                 line = line.trim();
                 if (line.isEmpty()) continue;
                 String content = JsonUtil.extractString(line, "content");
@@ -121,7 +150,7 @@ public class OllamaClient implements AIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendCall(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (resp.statusCode() != 200) {
             throw new RuntimeException("Ollama vision HTTP " + resp.statusCode() + ": " + GeminiClient.truncate(resp.body()));
         }
@@ -154,7 +183,7 @@ public class OllamaClient implements AIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendCall(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (resp.statusCode() != 200) {
             throw new RuntimeException("Ollama HTTP " + resp.statusCode() + ": " + GeminiClient.truncate(resp.body()));
         }

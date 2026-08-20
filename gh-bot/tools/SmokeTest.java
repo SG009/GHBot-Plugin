@@ -991,11 +991,49 @@ public class SmokeTest {
             ev3.disconnect();
             check("api/events reload reset flag", evBody3.contains("\"reset\":true")
                     && evBody3.contains("\"next\":2") && evBody3.contains("Approved"));
+            // v0.21.44 — Stop button: /api/cancel returns ok and requestStop is safe with no active call
+            java.net.HttpURLConnection cv = (java.net.HttpURLConnection) new java.net.URL(
+                    "http://127.0.0.1:" + ep + "/api/cancel?session=test").openConnection();
+            cv.setRequestMethod("POST"); cv.setConnectTimeout(3000); cv.setReadTimeout(3000);
+            String cvBody = new String(cv.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            cv.disconnect();
+            check("api/cancel stop ok", cv.getResponseCode() == 200 && cvBody.contains("stopping"));
             evSrv.stop();
         } catch (Exception e) {
             System.out.println("  [FAIL-DBG] events: " + e);
             check("api/events returns recorded actions", false);
             check("api/events cursor skip works", false);
+        }
+        // v0.21.44 — Stop button infrastructure: cancelActiveCall is safe to call idle
+        try {
+            dev.ghbot.ai.GeminiClient gc = new dev.ghbot.ai.GeminiClient(true, "gemini-2.5-flash", "k", "https://generativelanguage.googleapis.com/");
+            gc.cancelActiveCall();   // no in-flight call → must not throw
+            dev.ghbot.ai.OllamaClient oc = new dev.ghbot.ai.OllamaClient(true, "minimax-m3:cloud", "http://localhost:11434");
+            oc.cancelActiveCall();
+            check("cancelActiveCall safe when idle", true);
+        } catch (Throwable t) { check("cancelActiveCall safe when idle", false); }
+        // v0.21.44 — Sponge v3 Palette is a compound (map) not a list → import must not throw
+        // ClassCastException (the exact live bug on `schem import capital-de-wano.schem`).
+        try {
+            java.util.Map<String, Object> root3 = new java.util.LinkedHashMap<>();
+            root3.put("Width", 2); root3.put("Height", 1); root3.put("Length", 1);
+            java.util.Map<String, Object> pal3 = new java.util.LinkedHashMap<>();
+            java.util.Map<String, Object> st3 = new java.util.LinkedHashMap<>();
+            st3.put("Name", "minecraft:stone");
+            java.util.Map<String, Object> st4 = new java.util.LinkedHashMap<>();
+            st4.put("Name", "minecraft:air");
+            pal3.put("0", st3); pal3.put("1", st4);
+            root3.put("Palette", pal3);
+            root3.put("BlockData", new byte[]{0, 1});
+            var mth = dev.ghbot.schematic.SchematicImporter.class
+                    .getDeclaredMethod("importSponge", java.util.Map.class, int.class);
+            mth.setAccessible(true);
+            Object vmSponge = mth.invoke(null, root3, 3);
+            check("sponge v3 map-palette imports", vmSponge instanceof dev.ghbot.builder.VoxelModel
+                    && ((dev.ghbot.builder.VoxelModel) vmSponge).size() == 1);
+        } catch (Throwable t) {
+            System.out.println("  [FAIL-DBG] sponge v3 import: " + t);
+            check("sponge v3 map-palette imports", false);
         }
         // v0.21.40 — vision support flags + imageToSpec fallback message
         check("gemini claims vision", new dev.ghbot.ai.GeminiClient(true, "gemini-2.5-flash", "k", "https://generativelanguage.googleapis.com/").supportsVision());

@@ -84,6 +84,26 @@ public class WebStatusServer {
         server.createContext("/cmd", this::handleCmd);
         server.createContext("/upload", this::handleUpload);   // v0.21.40 — upload JSON build spec or image
         server.createContext("/api/events", this::handleApiEvents);   // v0.21.42 — review-activity feed
+        server.createContext("/api/cancel", this::handleApiCancel);   // v0.21.44 — Stop button
+    }
+
+    /* ── /api/cancel?session=<key> — v0.21.44: Stop button. Aborts the in-flight AI
+     *  request for the session (and closes the provider HTTP call so tokens aren't
+     *  wasted waiting out the timeout). ── */
+    private void handleApiCancel(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equalsIgnoreCase("POST")) { respond(ex, 405, "POST only"); return; }
+        String query = ex.getRequestURI().getQuery();
+        String session = "";
+        if (query != null) {
+            for (String kv : query.split("&")) {
+                String[] p = kv.split("=", 2);
+                if (p.length == 2 && p[0].equals("session")) {
+                    session = java.net.URLDecoder.decode(p[1], java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+        }
+        if (chatService != null) chatService.requestStop(session);
+        respond(ex, 200, "stopping");
     }
 
     /* ── /api/events?after=<idx> — v0.21.42: review actions (Approve/Deny/Export) that
@@ -419,8 +439,9 @@ public class WebStatusServer {
             ex.sendResponseHeaders(200, 0);
             var os = ex.getResponseBody();
             StringBuilder full = new StringBuilder();
+            final String sess = session;   // v0.21.44 — effective-final copy for the lambda
             try {
-                chatService.streamChat(bot, session, msg,
+                chatService.streamChat(bot, sess, msg,
                         chunk -> {
                             try {
 
@@ -430,7 +451,11 @@ public class WebStatusServer {
                                 String safe = "\"" + escJson(chunk) + "\"";
                                 os.write(("data: " + safe + "\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
                                 os.flush();
-                            } catch (Exception ignored) {}
+                            } catch (Exception e) {
+                                // v0.21.44 — client closed the stream (Stop / tab closed): abort the
+                                // in-flight AI call so the provider stops generating (saves tokens).
+                                try { chatService.requestStop(sess); } catch (Exception ignored) {}
+                            }
                         },
                         tools);
                 os.write(("event: done\ndata: [DONE]\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));

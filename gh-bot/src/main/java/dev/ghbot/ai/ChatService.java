@@ -33,6 +33,26 @@ public class ChatService {
     private final Map<String, List<AIClient.ChatMessage>> sessions = new ConcurrentHashMap<>();
     private final Map<String, Long> sessionLastAccess = new ConcurrentHashMap<>();
 
+    // v0.21.44 — Stop button: per-session stop flag + the client currently being called
+    // for that session, so /api/cancel can abort the in-flight AI request (saves tokens).
+    private final Map<String, Boolean> sessionStop = new ConcurrentHashMap<>();
+    private final Map<String, AIClient> sessionActiveClient = new ConcurrentHashMap<>();
+
+    /** v0.21.44 — request the session's in-flight AI call be stopped (web console Stop button). */
+    public void requestStop(String sessionKey) {
+        String key = (sessionKey == null) ? "" : sessionKey;
+        sessionStop.put(key, true);
+        // cancel whatever provider is currently blocked for this session; also sweep the
+        // other clients (a hung plan/build call may be on a client we haven't registered).
+        AIClient c = sessionActiveClient.get(key);
+        if (c != null) c.cancelActiveCall();
+        for (AIClient any : providers.allConfigured()) any.cancelActiveCall();
+        log.info("[GHBot] stop requested for session " + key);
+    }
+
+    /** v0.21.44 — true if a Stop was requested for this session (checked between chunks). */
+    private boolean stopped(String key) { return Boolean.TRUE.equals(sessionStop.get(key)); }
+
     /** Max concurrent sessions before LRU eviction kicks in. */
     private static final int MAX_SESSIONS = 100;
     /** Sessions unused for this long (ms) are evicted on the next cleanup sweep. */
@@ -137,6 +157,7 @@ public class ChatService {
                              java.util.function.Consumer<String> onChunk,
                              dev.ghbot.agent.ToolExecutor tools) {
         String key = bot.id() + "|" + sessionKey;
+        sessionStop.remove(key);   // v0.21.44 — fresh start: clear any previous stop
         List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         hist.add(new AIClient.ChatMessage("user", text));
         trim(hist);
@@ -155,13 +176,20 @@ public class ChatService {
                     log.consoleLog("[" + bot.id() + "] AUTO-TOOL " + auto.display() + " → " + truncate(result));
                     var cResult = compressResult(result);
                     if (onChunk != null) onChunk.accept(cResult.text() + "\n");
+                    // v0.21.44 — Stop pressed while the tool ran (e.g. plan hanging on the AI):
+                    // don't burn another AI call to "summarize" — just stop.
+                    if (stopped(key)) {
+                        hist.add(new AIClient.ChatMessage("assistant", "⏹ Stopped by user."));
+                        trim(hist);
+                        return "⏹ **Stopped.** (The running request was cancelled.)";
+                    }
                     hist.add(new AIClient.ChatMessage("assistant", "⟦tool:" + auto.display() + "⟧"));
                     hist.add(new AIClient.ChatMessage("user",
                             "[The server already ran the tool \"" + auto.display()
                             + "\" for you. Here is the REAL result:\n" + cResult.text()
                             + "\nSummarize it to the user based on this actual data. Do NOT claim you ran it yourself.]"));
                     trim(hist);
-                    String reply = streamRun(bot, hist, onChunk);
+                    String reply = streamRun(bot, hist, onChunk, key);
                     hist.add(new AIClient.ChatMessage("assistant", reply));
                     trim(hist);
                     return reply;
@@ -175,7 +203,9 @@ public class ChatService {
         StringBuilder finalReply = new StringBuilder();
         int rounds = 0;
         while (rounds++ < 3) {
-            String reply = streamRun(bot, hist, onChunk);
+            if (stopped(key)) { finalReply.append("⏹ **Stopped.**"); break; }   // v0.21.44
+            String reply = streamRun(bot, hist, onChunk, key);
+            if (stopped(key)) { finalReply.append("⏹ **Stopped.**"); break; }   // v0.21.44
             finalReply.append(reply);
             hist.add(new AIClient.ChatMessage("assistant", reply));
             trim(hist);
@@ -192,6 +222,7 @@ public class ChatService {
             }
             var call = calls.get(0);
             String result = tools.run(call);
+            if (stopped(key)) { finalReply.append("\n⏹ **Stopped.**"); break; }   // v0.21.44
             var cResult = compressResult(result);
             log.consoleLog("[" + bot.id() + "] TOOL " + call.name() + " " + String.join(" ", call.args())
                     + " → " + truncate(cResult.text()) + (cResult.originalLength() > cResult.text().length()
@@ -223,11 +254,13 @@ public class ChatService {
     /** v0.21.9 — try providers in order (Gemini → Ollama → OpenAI → fallback) so a
      *  quota error (429) or outage auto-falls back instead of failing the chat. */
     private String streamRun(GHBot bot, List<AIClient.ChatMessage> hist,
-                             java.util.function.Consumer<String> onChunk) {
+                             java.util.function.Consumer<String> onChunk, String sessionKey) {
         String sys = SYSTEM + "\n" + dev.ghbot.agent.ToolProtocol.helpText()
                 + "\n" + dev.ghbot.ai.CapabilityGuide.text();   // v0.21.27 — full capability knowledge
         Exception last = null;
         for (AIClient c : ordered(bot)) {
+            if (stopped(sessionKey)) break;   // v0.21.44
+            sessionActiveClient.put(sessionKey, c);   // v0.21.44 — so /api/cancel can abort it
             try {
                 log.info("[" + bot.id() + "] chat streaming via " + c.id());
                 String out = c.stream(sys, hist, onChunk);
@@ -236,9 +269,14 @@ public class ChatService {
             } catch (Exception e) {
                 last = e;
                 log.warn("AI provider " + c.id() + " stream failed — trying next: " + e.getMessage());
+            } finally {
+                sessionActiveClient.remove(sessionKey);
             }
         }
-        String err = "§cAll AI providers failed: " + (last == null ? "unknown" : last.getMessage());
+        sessionActiveClient.remove(sessionKey);
+        String err = stopped(sessionKey)
+                ? "⏹ Stopped."
+                : "§cAll AI providers failed: " + (last == null ? "unknown" : last.getMessage());
         if (onChunk != null) onChunk.accept(err);
         return err;
     }

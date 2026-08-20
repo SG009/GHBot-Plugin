@@ -44,4 +44,12 @@ public interface AIClient {
         throw new UnsupportedOperationException(
                 id() + " does not support image input — enable a vision-capable provider (gemini or a multimodal ollama model)");
     }
+
+    /**
+     * v0.21.44 — cancel any in-flight HTTP request this client is currently blocked on.
+     * Used by the web console's Stop button: aborting the request tells the AI provider
+     * to stop generating (saves tokens/usage) instead of waiting out the timeout.
+     * Default no-op; cancellable clients override it.
+     */
+    default void cancelActiveCall() {}
 }
