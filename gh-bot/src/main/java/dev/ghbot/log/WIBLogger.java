@@ -127,4 +127,26 @@ public final class WIBLogger {
             logger.warning("Could not write chat log: " + e.getMessage());
         }
     }
+
+    /**
+     * v0.22.1 — write an eyes spec (scan/find/look JSON world data) to
+     * logs/eyes/&lt;fileName&gt;.json. Full fidelity on disk; the chat/AI context
+     * gets a bounded inline digest instead (see TerrainSpec.INLINE_MAX).
+     * Returns the file name written, or null on failure.
+     */
+    public String writeEyesSpec(String fileName, String json) {
+        try {
+            java.nio.file.Path dir = chatLogFile.getParent().resolve("eyes");
+            Files.createDirectories(dir);
+            String safe = fileName == null || fileName.isBlank()
+                    ? "eyes-" + System.currentTimeMillis() : fileName.replaceAll("[^A-Za-z0-9._@-]", "_");
+            java.nio.file.Path f = dir.resolve(safe + ".json");
+            Files.writeString(f, json + System.lineSeparator(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            return "logs/eyes/" + safe + ".json";
+        } catch (IOException e) {
+            logger.warning("Could not write eyes spec: " + e.getMessage());
+            return null;
+        }
+    }
 }

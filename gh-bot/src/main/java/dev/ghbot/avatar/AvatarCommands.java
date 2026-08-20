@@ -10,6 +10,10 @@ import org.bukkit.entity.Player;
 
 /**
  * Phase 12 — avatar + marker commands.
+ *
+ * SHELVED v0.22.0 — whole class removed from the admin surface (JARVIS-FOR-ADMIN).
+ * Kept in code/git for revival; dispatch hard-blocks these commands. See
+ * {@code dev.ghbot.command.BotCommands.SHELVED}.
  */
 public final class AvatarCommands {
 

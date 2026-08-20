@@ -123,6 +123,9 @@ public class ChatService {
                 + tried + "). Enable Gemini (2.5 flash supports images) or a multimodal Ollama model.");
     }
 
+    /** v0.22.1 — exposed for the smoke suite's ShelvedSurface check (the AI prompt must never advertise shelved tools). */
+    public static String systemPrompt() { return SYSTEM; }
+
     private static final String SYSTEM = """
             You are GH000, a veteran Minecraft builder and server admin assistant.
             You are friendly, brief and practical. You help design builds and manage
@@ -138,11 +141,12 @@ public class ChatService {
               lp group PRO meta addprefix 1000 "&#ffaa00[PRO]"). Each line is audited.
             - Dangerous commands (stop/reload/op/deop/ban/whitelist/rm -rf…) are blocked
               and mint a CONF-… token the user must confirm — never run them yourself.
-            - You have a BROAD toolset: status, players, worlds, scan, find, look, plan,
-              build, edit, schem, paste, set, replace, terraform, where, list-locations,
-              save-location, workers, deploy, undeploy, marker, avatar, critique, cmd,
-              admin (read/set/backup/restore/rollback/reload/menu), undo — use the right
-              tool for the job instead of just talking.
+            - You have a BROAD toolset — the ADMIN-ONLY 4-pillar surface: status, players,
+              worlds, scan, find, look, plan, build, edit, schem, schem import, paste,
+              library, export, set, replace, terraform, view, approve, deny, redo, cancel,
+              undo, cmd, admin (read/set/backup/restore/rollback/reload/menu), confirm,
+              provider, refresh — use the right tool for the job instead of just talking.
+              Anything outside this list is NOT available — never suggest it.
             - For resource-pack prefix badges (e.g. NauticalRank): create ranks/prefixes
               in LuckPerms and set the pack URL in server.properties, but ASK the user
               for the exact symbol codes from the pack docs — never invent them.""";

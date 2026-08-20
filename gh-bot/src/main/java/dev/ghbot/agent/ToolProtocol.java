@@ -32,9 +32,11 @@ public final class ToolProtocol {
                                            you can run via cmd); e.g. catalog lp for LuckPerms commands
                 - players                — list who is online
                 - worlds                 — list loaded worlds
-                - scan <radius>          — scan terrain around the build origin (returns summary)
-                - find <block> [radius]  — find blocks of a type around the origin
-                - look <x> <y> <z>       — inspect the block at those coordinates
+                - scan [radius] [at x y z] [--full [depth]] — scan terrain (returns a summary AND a
+                                           compact JSON world spec {name,palette,blocks[]} with
+                                           absolute coords + origin; surface by default, --full for depth)
+                - find <block> [radius]  — find blocks of a type (returns exact coordinates as a JSON spec)
+                - look <x> <y> <z>       — inspect the block at those coordinates (returns its blockstate)
                 - plan <prompt...>       — text-only design preview (no blocks)
                 - build <prompt...>      — design and stage a build (then it's in the review viewer)
                 - edit <target> <instruction...> — modify an existing build by instruction (snapshot→plan→apply)

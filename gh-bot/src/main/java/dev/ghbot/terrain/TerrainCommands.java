@@ -27,20 +27,20 @@ public final class TerrainCommands {
         // ── scan ──
         r.register("scan", (b, ctx) -> {
             CommandSender sender = ctx.sender();
-            int radius = defaultRadius(b);
-            String where = null;
-
-            // parse: scan [where] [radius]  |  scan [radius]
-            if (ctx.args().length >= 1) {
-                String a0 = ctx.args()[0];
-                if (a0.matches("\\d+")) radius = clampRadius(Integer.parseInt(a0));
-                else where = a0;
+            // v0.22.1 — scan [--full [depth]] [radius] [where|here|me|player|at x y z]
+            boolean full = false;
+            int fullDepth = 0;
+            java.util.List<String> rest = new java.util.ArrayList<>();
+            String[] a = ctx.args();
+            for (int i = 0; i < a.length; i++) {
+                String t = a[i] == null ? "" : a[i].trim();
+                if (t.equalsIgnoreCase("--full")) { full = true; continue; }
+                if (full && fullDepth == 0 && t.matches("\\d+")) { fullDepth = Integer.parseInt(t); continue; }
+                rest.add(a[i]);
             }
-            if (ctx.args().length >= 2) {
-                String a1 = ctx.args()[1];
-                if (a1.matches("\\d+")) radius = clampRadius(Integer.parseInt(a1));
-                else if (where == null) where = a1;
-            }
+            var st = CoordResolver.scanTarget(rest.toArray(new String[0]), defaultRadius(b));
+            int radius = st.radius();
+            String where = st.where();
 
             Location base = baseLocation(sender, b);
             if (base == null) { sender.sendMessage("§cScan needs a location (player position or coordinates)."); return; }
@@ -58,11 +58,14 @@ public final class TerrainCommands {
 
             b.setActivity(GHBot.Activity.SCANNING);
             sender.sendMessage("§7[" + b.id() + "] Scanning " + radius + " blocks around ("
-                    + target.getBlockX() + ", " + target.getBlockY() + ", " + target.getBlockZ() + ")…");
-            log.info("[" + b.id() + "] scan radius " + radius + " at " + target.getBlockX() + "," + target.getBlockY() + "," + target.getBlockZ());
+                    + target.getBlockX() + ", " + target.getBlockY() + ", " + target.getBlockZ() + ")"
+                    + (full ? " §8(full depth " + (fullDepth > 0 ? fullDepth : 6) + ")" : "") + "…");
+            log.info("[" + b.id() + "] scan radius " + radius + (full ? " full depth " + (fullDepth > 0 ? fullDepth : 6) : "")
+                    + " at " + target.getBlockX() + "," + target.getBlockY() + "," + target.getBlockZ());
 
             // scanning is CPU-heavy → run on the async pool so the server never hitches
             int rFinal = radius;
+            int depthFinal = full ? (fullDepth > 0 ? fullDepth : 6) : 0;
             Location targetFinal = target;
             bridge.async(() -> {
                 try {
@@ -70,12 +73,16 @@ public final class TerrainCommands {
                     b.memory().put("terrain", summary.toMap());   // plain map → YAML-safe
                     b.memory().put("terrain.radius", rFinal);
                     b.memory().put("terrain.origin", targetFinal.getBlockX() + "," + targetFinal.getBlockY() + "," + targetFinal.getBlockZ()); // kept for runtime
+                    // v0.22.1 — eyes-as-data: emit the world as a TerrainSpec (memory + file + inline)
+                    TerrainSpec spec = TerrainScanner.scanSpec(targetFinal, rFinal, depthFinal);
+                    if (spec != null) routeSpec(b, sender, log, spec);
                     sender.sendMessage("§a[" + b.id() + "] " + summary.toLine());
                 } finally {
                     b.setActivity(GHBot.Activity.IDLE);
                 }
             });
-        }, CommandRegistry.Meta.of("Scan the terrain (around you, a player, or coords)", "scan [radius] | scan <player|coords> [radius]"));
+        }, CommandRegistry.Meta.of("Scan the terrain (around you, a player, or coords); --full emits a deeper spec",
+                "scan [radius] | scan <player|coords> [radius] | scan --full [depth]"));
 
         // ── look ──
         r.register("look", (b, ctx) -> {
@@ -94,6 +101,13 @@ public final class TerrainCommands {
             sender.sendMessage("§f(" + target.getBlockX() + ", " + target.getBlockY() + ", " + target.getBlockZ()
                     + ") §7→ §a" + m.name().toLowerCase()
                     + (extra.isEmpty() ? "" : " §7[" + extra + "]"));
+            // v0.22.1 — eyes-as-data: single-block spec preserving the full blockstate
+            TerrainSpec spec = new TerrainSpec();
+            spec.kind = "look";
+            spec.ox = target.getBlockX(); spec.oy = target.getBlockY(); spec.oz = target.getBlockZ();
+            spec.name = "look@" + target.getBlockX() + "," + target.getBlockY() + "," + target.getBlockZ();
+            spec.addRaw(target.getBlockX(), target.getBlockY(), target.getBlockZ(), blk.getBlockData().getAsString());
+            routeSpec(b, sender, log, spec);
         }, CommandRegistry.Meta.of("What block is at a location?", "look at <coord|here>"));
 
         // ── find ──
@@ -103,9 +117,22 @@ public final class TerrainCommands {
                 sender.sendMessage("§eUsage: " + b.id() + " find <block> [radius]");
                 return;
             }
-            String blockName = ctx.args()[0].toLowerCase();
+            String blockName = ctx.args()[0].toLowerCase().replace("minecraft:", "");
             int radius = ctx.args().length >= 2 && ctx.args()[1].matches("\\d+")
                     ? clampRadius(Integer.parseInt(ctx.args()[1])) : 50;
+
+            // v0.22.1 — the AI sometimes says "find that"/"find this": strip
+            // conversational pronouns and fall back to the last scan's dominant
+            // top block instead of a brittle "unknown block" error.
+            if (blockName.matches("(that|this|it|here|the|those|these)")) {
+                String fb = dominantTopBlock(b);
+                if (fb == null) {
+                    sender.sendMessage("§c\"find " + blockName + "\" isn't a block. Try e.g. find diamond_ore 50.");
+                    return;
+                }
+                sender.sendMessage("§7[" + b.id() + "] \"find " + blockName + "\" → using the last scan's dominant block: " + fb);
+                blockName = fb;
+            }
 
             Material mat = Material.matchMaterial(blockName);
             if (mat == null) {
@@ -119,13 +146,15 @@ public final class TerrainCommands {
 
             Location base = baseLocation(sender, b);
             if (base == null) { sender.sendMessage("§cFind needs a location."); return; }
-            // optional player target: find <block> <radius> <playerName>
+            // optional target: find <block> [radius] [playerName | at x y z | x y z]
             if (ctx.args().length >= 3) {
-                Location pl = CoordResolver.resolvePlayer(ctx.args()[2]);
-                if (pl != null) {
-                    base = pl;
-                    sender.sendMessage("§7[" + b.id() + "] Finding around player at ("
-                            + pl.getBlockX() + ", " + pl.getBlockY() + ", " + pl.getBlockZ() + ")…");
+                String[] rest = java.util.Arrays.copyOfRange(ctx.args(), 2, ctx.args().length);
+                Location target = CoordResolver.parseWhere(sender, rest, base);
+                if (target == null) target = CoordResolver.resolvePlayer(String.join(" ", rest));
+                if (target != null && target != base) {
+                    base = target;
+                    sender.sendMessage("§7[" + b.id() + "] Finding around ("
+                            + target.getBlockX() + ", " + target.getBlockY() + ", " + target.getBlockZ() + ")…");
                 }
             }
 
@@ -147,6 +176,13 @@ public final class TerrainCommands {
                             sender.sendMessage("§f- " + matFinal.name().toLowerCase() + " at ("
                                     + blk.getX() + ", " + blk.getY() + ", " + blk.getZ() + ")");
                         }
+                        // v0.22.1 — eyes-as-data: found positions as a find-spec (exact coords → replace/undo)
+                        TerrainSpec spec = new TerrainSpec();
+                        spec.kind = "find";
+                        spec.ox = baseFinal.getBlockX(); spec.oy = baseFinal.getBlockY(); spec.oz = baseFinal.getBlockZ();
+                        spec.name = "find@" + matFinal.name().toLowerCase() + "@r" + radius;
+                        for (var blk : found) spec.add(blk.getX(), blk.getY(), blk.getZ(), matFinal.name());
+                        routeSpec(b, sender, log, spec);
                     }
                 } finally {
                     b.setActivity(GHBot.Activity.IDLE);
@@ -186,5 +222,38 @@ public final class TerrainCommands {
 
     private static int clampRadius(int r) {
         return Math.max(1, Math.min(200, r));
+    }
+
+    /**
+     * v0.22.1 — route an eyes spec to (1) bot memory, (2) logs/eyes/&lt;name&gt;.json
+     * (full fidelity), and (3) the sender as a bounded inline JSON digest
+     * (TerrainSpec.INLINE_MAX blocks) so the Technician sees the world as data
+     * without blowing up the context window on the phone.
+     */
+    private static void routeSpec(GHBot b, CommandSender sender, WIBLogger log, TerrainSpec spec) {
+        String json = spec.toJson();
+        b.memory().put("eyes.spec", json);
+        b.memory().put("eyes.kind", spec.kind);
+        b.memory().put("eyes.origin", spec.ox + "," + spec.oy + "," + spec.oz);
+        b.memory().put("eyes.summary", spec.toLine());
+        String file = log.writeEyesSpec(spec.name, json);
+        StringBuilder msg = new StringBuilder("§7[" + b.id() + "] eyes-spec: " + spec.toLine());
+        if (file != null) msg.append(" §7(").append(file).append(')');
+        msg.append("\n§7").append(spec.toJsonInline(TerrainSpec.INLINE_MAX));
+        sender.sendMessage(msg.toString());
+    }
+
+    /** v0.22.1 — dominant top block from the last scan context (for "find that" fallback). */
+    private static String dominantTopBlock(GHBot bot) {
+        Object terrain = bot.memory().get("terrain");
+        if (terrain instanceof java.util.Map<?, ?> tmap) {
+            Object tb = tmap.get("topBlocks");
+            if (tb instanceof java.util.Map<?, ?> tbm && !tbm.isEmpty()) {
+                for (Object k : tbm.keySet()) {
+                    if (k != null && !String.valueOf(k).isBlank()) return String.valueOf(k);
+                }
+            }
+        }
+        return null;
     }
 }

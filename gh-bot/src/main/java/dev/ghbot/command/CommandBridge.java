@@ -126,9 +126,18 @@ public class CommandBridge {
         noticeSender.run();
     }
 
+    /**
+     * v0.22.1 — the admin-only rule, extracted so it's documented + smoke-testable:
+     * console (non-Player senders) is always admin; in-game players must be OP.
+     */
+    public static boolean isAdminSender(CommandSender sender) {
+        if (sender instanceof org.bukkit.entity.Player p) return p.isOp();
+        return true;   // console / command blocks / tools = admin
+    }
+
     public void dispatch(GHBot bot, CommandSender sender, String name, String[] args) {
         // v0.22.0 — JARVIS-FOR-ADMIN: hard-block non-ops (console + OP players only).
-        if (sender instanceof org.bukkit.entity.Player p && !p.isOp()) {
+        if (!isAdminSender(sender)) {
             sender.sendMessage("§cGH-bot is admin-only — console/OP required.");
             return;
         }

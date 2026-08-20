@@ -1,18 +1,55 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) · smoke **384/384 PASS** · jar `GHBot-0.22.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) & hardening (vanilla constraints, heightmap persistence, coordinate parsing, admin-only guard) · smoke **414/414 PASS** · jar `GHBot-0.22.1.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.22.0 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.22.1 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-08-19**. The rest of the
+> read this section first. It is the verified truth as of **2026-08-20**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog.
+
+### What's new in v0.22.1 (Eyes-as-Data + hardening)
+- **Pillar 2 now "sees" as data.** `scan` / `find` / `look` emit a **TerrainSpec** — the same
+  contract shape as a JSON build spec (`{name,palette,blocks[]}`) but in **absolute world coords
+  with an `origin` anchor** — so the Technician gets the world as block data, not prose.
+  - **scan** = surface snapshot by default (top solid block per column, phone-safe); `scan --full [depth]`
+    adds bounded depth below the surface (cap 64). **find** = the found positions; **look** = the
+    single block with its full blockstate (`minecraft:oak_stairs[facing=north]`) preserved.
+  - Routing: bot memory (`eyes.spec`) + `logs/eyes/<name>.json` (full data) + a **bounded inline JSON
+    digest (150 blocks)** to the chat/AI context — full fidelity on disk, no context blowup on the 6 GB phone.
+  - **Round-trip:** `TerrainSpec.toBuildSpec()` translates absolute→relative via the origin and feeds
+    the existing build/edit path, closing the "see → act" loop (`find oak_log` → `replace` → `undo`).
+- **Vanilla block constraint (hardening).** `JsonBuildSpec` now resolves every block name through
+  `Material.matchMaterial` and reports WHY a spec is invalid instead of silently skipping hallucinated
+  names at placement time (the old source of "places fewer blocks than the spec" drift). Blockstate
+  properties are stripped consistently (`oak_stairs[facing=north]` → `oak_stairs`).
+- **Heightmap persistence.** `TerrainSummary.toMap()`/`fromMap()` now save + restore the heightmap
+  (was dropped on reload, so "foundation follows the ground" lost its data). Downsampled for huge scans.
+- **Coordinate parsing unified.** New `CoordResolver.scanTarget()` / `parseWhere()` — one parser shared
+  by `scan`/`find`/`look`/`set`/`replace`/`terraform` **and** `AutoTools`, so `scan 100 at 86 86 262`,
+  `scan 86 86 262` and `scan at 86,86,262` all land on the same spot (the old `at` bug is fixed).
+  `set` also accepts the AI's natural "`set stone at 86 86 262`" order.
+- **`find that` pronoun fallback.** `find that`/`find this` no longer errors — it falls back to the
+  last scan's dominant top block and says so.
+- **Admin-only guard extracted** (`CommandBridge.isAdminSender`) so it's documented + smoke-testable.
+- **Shelved-code freeze policy (D4).** Shelved commands stay in code/git with `// SHELVED v0.22.0`
+  markers; a `ShelvedSurface` smoke check asserts every shelved command is hard-blocked at dispatch
+  and absent from CATALOG/tool-sheet/AI-help. `ToolBridge.LEGACY_ALLOWED` (dead, still listed shelved
+  commands) removed — `ALLOWED == CATALOG` is now the single source of truth.
+- Smoke **420 checks** (was 384): +36 for eyes-as-data round-trip, inline truncation, vanilla
+  constraints, heightmap persistence, coordinate parsing, pronoun fallback, shelved surface, admin-only,
+  AI-prompt shelved-leak, paste offsets.
+- **Batch-test fixes (2026-08-20 evidence review):** the AI system prompt + capability guide still
+  advertised shelved tools (`where`/`save-location`/`workers`/…/`schem download`) → the model
+  hallucinated them; now trimmed to the 4-pillar surface. `edit the dragon's wings` no longer
+  errors on the determiner ("the") — falls back to `here`. `paste <file> 30 10` now respects
+  the x/z (and x/y/z) offset instead of silently pasting at the origin.
 
 ### What's new in v0.22.0 (JARVIS-FOR-ADMIN — the 4-pillar reset)
 The owner's decisive refocus: GHBot is now a **Jarvis for the Minecraft server, usable by the
@@ -162,7 +199,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **384 checks**):
+2. Recompile + run the smoke suite (currently **414 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -230,7 +267,7 @@ Hard constraints:
 
 ## Quick start (batch-test checklist)
 
-1. Drop `GHBot-0.22.0.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
+1. Drop `GHBot-0.22.1.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
 2. In-game: `@GH000 help` (lists ~27 commands) · `@GH000 scan here` · `@GH000 build a house` → walk the ghost → `approve`/`deny`/`redo`.
 3. **Browser review:** `server.web.enabled: true` → restart → `@GH000 build a tower` → `@GH000 view` → open URL → orbit → **Approve**.
 4. **Web chat:** open `http://<phone-ip>:8580/chat` (old page) or `/console` (agent console). **Secretary (no cloud):** click **Load secretary** — needs Chrome/Edge on Android. WebGPU requires a secure context, so open `http://127.0.0.1:8580/console` on the phone itself (or via an https tunnel) — plain `http://<LAN-ip>` won't expose WebGPU. Pick **2B** for a 6 GB phone, **4B** for max quality when the server is idle. **Workflow:** ask the secretary to draft a request → edit its `⟦draft⟧` card → **Send to technician** (chips still execute on the server directly). **Upload (v0.21.40):** the **📎** button next to the input — pick a `.json` build spec (staged directly, no paste) or an image (GH-bot sees it → generates the build).
@@ -258,8 +295,8 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (384 checks, all passing) · setup-build.sh (sandbox toolchain restore)
-releases/GHBot-0.22.0.jar            (current ship; old jars removed once confirmed)
+└── tools/SmokeTest.java              (414 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+releases/GHBot-0.22.1.jar            (current ship; old jars removed once confirmed)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```
 

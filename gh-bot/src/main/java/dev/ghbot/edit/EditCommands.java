@@ -72,7 +72,18 @@ public final class EditCommands {
             if (base == null) { sender.sendMessage("§cEdit needs a location."); return; }
             Location target = CoordResolver.resolve(sender, targetArg, base);
             if (target == null) target = CoordResolver.resolvePlayer(targetArg);
-            if (target == null) { sender.sendMessage("§cCouldn't resolve \"" + targetArg + "\"."); return; }
+            if (target == null) {
+                // v0.22.1 — natural-language phrasing "edit the dragon's wings": the
+                // first word is a determiner, not a location. Fall back to "here" and
+                // keep the whole phrase as the instruction instead of a bare error.
+                if (targetArg.matches("(?i)(the|a|an|that|this|it|those|these|some|my|our)")) {
+                    target = base;
+                    instruction = targetArg + " " + instruction;
+                } else {
+                    sender.sendMessage("§cCouldn't resolve \"" + targetArg + "\".");
+                    return;
+                }
+            }
 
             int radius = 15;
             var rm = java.util.regex.Pattern.compile("radius\\s+(\\d+)").matcher(instruction);

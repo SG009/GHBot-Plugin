@@ -66,21 +66,13 @@ public final class ToolBridge {
         return s.replaceAll("§[0-9a-fk-orx]", "");
     }
 
-    /** Commands the AI may reach through the bridge (whitelist). */
-    /** v0.21.14 — every command in the catalog is a tool (single source of truth). */
+    /**
+     * Commands the AI may reach through the bridge (whitelist).
+     * v0.21.14 — every command in the catalog is a tool (single source of truth);
+     * v0.22.1 — removed the stale @Deprecated LEGACY_ALLOWED list (it still named
+     * shelved commands and could drift from the catalog; ALLOWED is the only list).
+     */
     public static final Set<String> ALLOWED = dev.ghbot.command.BotCommands.CATALOG.keySet();
-
-    @Deprecated
-    public static final Set<String> LEGACY_ALLOWED = Set.of(
-            "plan", "edit", "editspec", "schem", "paste", "library",
-            "set", "replace", "terraform",
-            "where", "list-locations", "save-location", "delete-location",
-            "marker", "avatar", "animate", "style",
-            "workers", "deploy", "undeploy",
-            "critique", "provider", "refresh", "add", "confirm",
-            "teach", "dataset", "export", "cancel", "memory", "image", "help",
-            "approve", "deny", "redo"   // v0.21.13 — review actions from web chat
-    );
 
     /** Run a whitelisted bot command and return its captured output. */
     public static String run(CommandBridge bridge, GHBot bot, String name, String[] args) {
