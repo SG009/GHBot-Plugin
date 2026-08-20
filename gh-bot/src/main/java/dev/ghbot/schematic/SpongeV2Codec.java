@@ -35,13 +35,13 @@ public class SpongeV2Codec implements SchematicCodec {
 
         byte[] blockData = new byte[w * h * d];
         java.util.Arrays.fill(blockData, (byte) 0);
-        // xzy order: index = (x * d + z) * h + y
+        // canonical Sponge order (research PDF): i = x + z*Width + y*Width*Length (X fastest)
         for (Map.Entry<Long, String> e : voxels.entrySet()) {
             int x = VoxelModel.xOf(e.getKey()) - minX;
             int y = VoxelModel.yOf(e.getKey()) - minY;
             int z = VoxelModel.zOf(e.getKey()) - minZ;
             if (x < 0 || x >= w || y < 0 || y >= h || z < 0 || z >= d) continue;
-            int idx = (x * d + z) * h + y;
+            int idx = x + z * w + y * w * d;
             blockData[idx] = (byte) (palette.get(e.getValue()) & 0xFF);
         }
 

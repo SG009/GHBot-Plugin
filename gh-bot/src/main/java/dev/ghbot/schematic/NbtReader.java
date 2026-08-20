@@ -66,6 +66,12 @@ public final class NbtReader {
                 for (int i = 0; i < n; i++) a[i] = in.readInt();
                 return a;
             }
+            case NbtWriter.TAG_LONG_ARRAY -> {   // v0.21.46 — Litematica BlockStates
+                int n = in.readInt();
+                long[] a = new long[n];
+                for (int i = 0; i < n; i++) a[i] = in.readLong();
+                return a;
+            }
             case NbtWriter.TAG_STRING -> { return in.readUTF(); }
             case NbtWriter.TAG_LIST -> {
                 int listTag = in.readUnsignedByte();

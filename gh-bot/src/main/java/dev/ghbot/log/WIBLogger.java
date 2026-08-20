@@ -43,7 +43,17 @@ public final class WIBLogger {
     }
 
     public void error(String msg, Throwable t) {
-        logger.severe("[" + stamp() + "] " + msg + (t == null ? "" : " — " + t.getMessage()));
+        // v0.21.46 — include the first stack frames so errors (e.g. StackOverflowError in build)
+        // are actually diagnosable from latest.txt instead of just a one-liner.
+        StringBuilder sb = new StringBuilder("[" + stamp() + "] " + msg);
+        if (t != null) {
+            sb.append(" — ").append(t);
+            StackTraceElement[] st = t.getStackTrace();
+            int n = Math.min(10, st.length);
+            for (int i = 0; i < n; i++) sb.append("\n    at ").append(st[i]);
+            if (st.length > n) sb.append("\n    … ").append(st.length - n).append(" more");
+        }
+        logger.severe(sb.toString());
     }
 
     /** Append an admin action to logs/admin.log (audit trail). */

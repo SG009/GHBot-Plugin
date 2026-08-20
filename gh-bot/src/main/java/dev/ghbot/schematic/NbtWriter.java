@@ -19,7 +19,8 @@ public final class NbtWriter {
 
     public static final int TAG_END = 0, TAG_BYTE = 1, TAG_SHORT = 2, TAG_INT = 3,
             TAG_LONG = 4, TAG_FLOAT = 5, TAG_DOUBLE = 6, TAG_BYTE_ARRAY = 7,
-            TAG_STRING = 8, TAG_LIST = 9, TAG_COMPOUND = 10, TAG_INT_ARRAY = 11;
+            TAG_STRING = 8, TAG_LIST = 9, TAG_COMPOUND = 10, TAG_INT_ARRAY = 11,
+            TAG_LONG_ARRAY = 12;   // v0.21.46 — needed for Litematica BlockStates (long[])
 
     private NbtWriter() {}
 
@@ -64,6 +65,10 @@ public final class NbtWriter {
                 int[] a = (int[]) v;
                 out.writeByte(TAG_INT_ARRAY); out.writeUTF(e.getKey()); out.writeInt(a.length);
                 for (int i : a) out.writeInt(i);
+            } else if (v instanceof long[]) {
+                long[] la = (long[]) v;   // v0.21.46 — TAG_Long_Array (Litematica BlockStates)
+                out.writeByte(TAG_LONG_ARRAY); out.writeUTF(e.getKey()); out.writeInt(la.length);
+                for (long l : la) out.writeLong(l);
             } else if (v instanceof String) {
                 out.writeByte(TAG_STRING); out.writeUTF(e.getKey()); out.writeUTF((String) v);
             } else if (v instanceof List<?>) {

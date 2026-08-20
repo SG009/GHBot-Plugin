@@ -20,27 +20,26 @@ public class SpongeV3Codec implements SchematicCodec {
     @Override
     public byte[] export(Map<Long, String> voxels, int minX, int minY, int minZ,
                          int w, int h, int d) throws Exception {
-        List<String> paletteOrder = new ArrayList<>();
+        // v0.21.46 — write the REAL Sponge v3 format (was writing v2-shaped output):
+        //   Palette = compound { "minecraft:blockstate" : int palette-id }
+        //   BlockData = VARINT palette ids, xzy order.
         Map<String, Integer> palette = new LinkedHashMap<>();
         palette.put("air", 0);           // reserve id 0 = air
-        paletteOrder.add("air");
         for (Map.Entry<Long, String> e : voxels.entrySet()) {
-            if (!palette.containsKey(e.getValue())) {
-                palette.put(e.getValue(), palette.size());
-                paletteOrder.add(e.getValue());
-            }
+            if (!palette.containsKey(e.getValue())) palette.put(e.getValue(), palette.size());
         }
 
-        // v3 uses varint palette ids; we store bytes for simplicity (ids < 256)
-        byte[] blockData = new byte[w * h * d];
-        java.util.Arrays.fill(blockData, (byte) 0);
+        // varint-encode the palette ids (xzy order, index = (x*d+z)*h+y)
+        int[] ids = new int[w * h * d];
+        java.util.Arrays.fill(ids, 0);
         for (Map.Entry<Long, String> e : voxels.entrySet()) {
             int x = VoxelModel.xOf(e.getKey()) - minX;
             int y = VoxelModel.yOf(e.getKey()) - minY;
             int z = VoxelModel.zOf(e.getKey()) - minZ;
             if (x < 0 || x >= w || y < 0 || y >= h || z < 0 || z >= d) continue;
-            blockData[(x * d + z) * h + y] = (byte) (palette.get(e.getValue()) & 0xFF);
+            ids[x + z * w + y * w * d] = palette.get(e.getValue());   // canonical: i = x + z*W + y*W*L
         }
+        byte[] blockData = writeVarints(ids);
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("Version", 3);
@@ -50,13 +49,8 @@ public class SpongeV3Codec implements SchematicCodec {
         root.put("Length", d);
         root.put("Offset", new int[]{minX, minY, minZ});
 
-        List<Object> paletteNbt = new ArrayList<>();
-        for (String name : paletteOrder) {
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("Name", "minecraft:" + name);
-            entry.put("Properties", new LinkedHashMap<>());
-            paletteNbt.add(entry);
-        }
+        Map<String, Object> paletteNbt = new LinkedHashMap<>();
+        for (var en : palette.entrySet()) paletteNbt.put("minecraft:" + en.getKey(), en.getValue());
         root.put("Palette", paletteNbt);
         root.put("BlockData", blockData);
         root.put("BlockEntities", new ArrayList<>());
@@ -64,5 +58,15 @@ public class SpongeV3Codec implements SchematicCodec {
         root.put("BiomeData", new byte[0]);
 
         return NbtWriter.writeRoot("Schematic", root, true);
+    }
+
+    /** v0.21.46 — varint-encode ints (Sponge v3 BlockData). */
+    private static byte[] writeVarints(int[] ids) {
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream(ids.length);
+        for (int v : ids) {
+            while ((v & ~0x7F) != 0) { bos.write((v & 0x7F) | 0x80); v >>>= 7; }
+            bos.write(v);
+        }
+        return bos.toByteArray();
     }
 }

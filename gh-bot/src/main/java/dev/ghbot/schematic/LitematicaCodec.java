@@ -24,6 +24,8 @@ public class LitematicaCodec implements SchematicCodec {
                          int w, int h, int d) throws Exception {
         List<String> paletteOrder = new ArrayList<>();
         Map<String, Integer> palette = new LinkedHashMap<>();
+        palette.put("air", 0);           // v0.21.46 — Litematica strictly reserves index 0 = air
+        paletteOrder.add("air");
         for (Map.Entry<Long, String> e : voxels.entrySet()) {
             if (!palette.containsKey(e.getValue())) {
                 palette.put(e.getValue(), palette.size());
@@ -31,7 +33,7 @@ public class LitematicaCodec implements SchematicCodec {
             }
         }
 
-        // pack palette ids into longs (Litematica packs N ids of B bits each)
+        // pack palette ids into longs (Litematica packs N ids of B bits each; B = max(2, ceil(log2(P))))
         int paletteSize = Math.max(1, palette.size());
         int bits = Math.max(2, 32 - Integer.numberOfLeadingZeros(paletteSize - 1));
         int perLong = 64 / bits;

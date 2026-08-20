@@ -137,7 +137,7 @@ public class CommandBridge {
         }
         try {
             reg.execute(bot, sender, name, args);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | StackOverflowError e) {   // v0.21.46 — contain Errors too (seen SOE in build)
             log.error("Error executing \"" + name + "\" on " + bot.id(), e);
         }
     }

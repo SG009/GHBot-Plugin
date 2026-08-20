@@ -32,8 +32,7 @@ public class OpenAIClient implements AIClient {
     }
 
     private <T> HttpResponse<T> sendCall(HttpRequest req, HttpResponse.BodyHandler<T> handler) throws Exception {
-        if (cancelled) throw new RuntimeException(id() + ": request cancelled");
-        cancelled = false;
+        cancelled = false;   // v0.21.46 — a fresh call must NEVER be poisoned by a stale stop
         var f = http.sendAsync(req, handler);
         inFlight = f;
         try {

@@ -552,26 +552,52 @@ public class SmokeTest {
             check("paste finds library file (no 'No such file')", false);
             check("paste missing file says so", false);
         }
-        // official Sponge v3 palette = compound of blockstate STRINGS → must decode to blocks
+        // v0.21.46 — REAL Sponge v3: Palette compound {blockstate-string → int id}, BlockData varints
         try {
+            // build a real v3 file via the codec, then import it back (round-trip: same block SET)
+            byte[] v3bytes = new SpongeV3Codec().export(vm2.entriesMapSafe(), -2, 0, 0, 4, 4, 6);
+            var rt3 = dev.ghbot.schematic.SchematicImporter.importFile(v3bytes);
+            boolean rt3Set = rt3 != null && rt3.size() == 4;
+            if (rt3 != null) {
+                java.util.Set<String> got3 = new java.util.HashSet<>();
+                rt3.entries().forEach(e -> got3.add(e.getValue()));
+                rt3Set = rt3Set && got3.contains("oak_planks") && got3.contains("glass")
+                        && got3.contains("stone_bricks") && got3.contains("diamond_block");
+            }
+            check("sponge v3 round-trip imports blocks", rt3Set);
+            // synthetic v3 with the REAL shape: Palette = { "minecraft:stone_bricks": 1, "minecraft:air": 0 }, varint BlockData [1,0]
             java.util.Map<String, Object> rootStr = new java.util.LinkedHashMap<>();
             rootStr.put("Width", 2); rootStr.put("Height", 1); rootStr.put("Length", 1);
             java.util.Map<String, Object> palStr = new java.util.LinkedHashMap<>();
-            palStr.put("0", "minecraft:stone_bricks");
-            palStr.put("1", "minecraft:air");
+            palStr.put("minecraft:stone_bricks", 1);
+            palStr.put("minecraft:air", 0);
             rootStr.put("Palette", palStr);
-            rootStr.put("BlockData", new byte[]{0, 1});
+            rootStr.put("BlockData", new byte[]{1, 0});   // varints: id 1, id 0
             var mthStr = dev.ghbot.schematic.SchematicImporter.class
                     .getDeclaredMethod("importSponge", java.util.Map.class, int.class);
             mthStr.setAccessible(true);
             Object vmStr = mthStr.invoke(null, rootStr, 3);
-            check("sponge v3 STRING palette imports", vmStr instanceof dev.ghbot.builder.VoxelModel
+            check("sponge v3 real-format palette imports", vmStr instanceof dev.ghbot.builder.VoxelModel
                     && ((dev.ghbot.builder.VoxelModel) vmStr).size() == 1);
-            // properties in blockstate strings are stripped: "minecraft:oak_stairs[facing=north]"
+            // varint BlockData with a 2-byte value (id 300) must decode
+            java.util.Map<String, Object> rootV = new java.util.LinkedHashMap<>();
+            rootV.put("Width", 1); rootV.put("Height", 1); rootV.put("Length", 1);
+            java.util.Map<String, Object> palV = new java.util.LinkedHashMap<>();
+            palV.put("minecraft:stone_bricks", 300);
+            rootV.put("Palette", palV);
+            rootV.put("BlockData", new byte[]{(byte) 0xAC, 0x02});   // 300 as varint
+            var mthV = dev.ghbot.schematic.SchematicImporter.class
+                    .getDeclaredMethod("importSponge", java.util.Map.class, int.class);
+            mthV.setAccessible(true);
+            Object vmV = mthV.invoke(null, rootV, 3);
+            check("sponge v3 varint blockdata decodes", vmV instanceof dev.ghbot.builder.VoxelModel
+                    && ((dev.ghbot.builder.VoxelModel) vmV).size() == 1
+                    && "stone_bricks".equals(((dev.ghbot.builder.VoxelModel) vmV).get(0, 0, 0)));
+            // property stripping on the string-key form
             java.util.Map<String, Object> rootP = new java.util.LinkedHashMap<>();
             rootP.put("Width", 1); rootP.put("Height", 1); rootP.put("Length", 1);
             java.util.Map<String, Object> palP = new java.util.LinkedHashMap<>();
-            palP.put("0", "minecraft:oak_stairs[facing=north,half=top]");
+            palP.put("minecraft:oak_stairs[facing=north,half=top]", 0);
             rootP.put("Palette", palP);
             rootP.put("BlockData", new byte[]{0});
             var mthP = dev.ghbot.schematic.SchematicImporter.class
@@ -581,9 +607,27 @@ public class SmokeTest {
             check("sponge v3 props stripped", vmP instanceof dev.ghbot.builder.VoxelModel
                     && "oak_stairs".equals(((dev.ghbot.builder.VoxelModel) vmP).get(0, 0, 0)));
         } catch (Throwable t) {
-            System.out.println("  [FAIL-DBG] sponge v3 string palette: " + t);
-            check("sponge v3 STRING palette imports", false);
+            System.out.println("  [FAIL-DBG] sponge v3 real format: " + t);
+            check("sponge v3 round-trip imports blocks", false);
+            check("sponge v3 real-format palette imports", false);
+            check("sponge v3 varint blockdata decodes", false);
             check("sponge v3 props stripped", false);
+        }
+        // v0.21.46 — Litematica round-trip (export → import) exercises the LongArray reader + decoder
+        try {
+            byte[] lit = new LitematicaCodec().export(vm2.entriesMapSafe(), -2, 0, 0, 4, 4, 6);
+            var litVm = dev.ghbot.schematic.SchematicImporter.importFile(lit);
+            boolean litSet = litVm != null && litVm.size() == 4;
+            if (litVm != null) {
+                java.util.Set<String> gotLit = new java.util.HashSet<>();
+                litVm.entries().forEach(e -> gotLit.add(e.getValue()));
+                litSet = litSet && gotLit.contains("oak_planks") && gotLit.contains("glass")
+                        && gotLit.contains("stone_bricks") && gotLit.contains("diamond_block");
+            }
+            check("litematica round-trip imports blocks", litSet);
+        } catch (Throwable t) {
+            System.out.println("  [FAIL-DBG] litematica round-trip: " + t);
+            check("litematica round-trip imports blocks", false);
         }
 
         // 8l) Phase 8b — import round-trip (export → read back) + learning dataset
@@ -1073,28 +1117,28 @@ public class SmokeTest {
             oc.cancelActiveCall();
             check("cancelActiveCall safe when idle", true);
         } catch (Throwable t) { check("cancelActiveCall safe when idle", false); }
-        // v0.21.44 — Sponge v3 Palette is a compound (map) not a list → import must not throw
-        // ClassCastException (the exact live bug on `schem import capital-de-wano.schem`).
+        // v0.21.44/46 — Sponge v2 Palette is a LIST of compounds → must not throw
+        // ClassCastException (the original live bug on `schem import capital-de-wano.schem`).
         try {
-            java.util.Map<String, Object> root3 = new java.util.LinkedHashMap<>();
-            root3.put("Width", 2); root3.put("Height", 1); root3.put("Length", 1);
-            java.util.Map<String, Object> pal3 = new java.util.LinkedHashMap<>();
-            java.util.Map<String, Object> st3 = new java.util.LinkedHashMap<>();
-            st3.put("Name", "minecraft:stone");
-            java.util.Map<String, Object> st4 = new java.util.LinkedHashMap<>();
-            st4.put("Name", "minecraft:air");
-            pal3.put("0", st3); pal3.put("1", st4);
-            root3.put("Palette", pal3);
-            root3.put("BlockData", new byte[]{0, 1});
-            var mth = dev.ghbot.schematic.SchematicImporter.class
+            java.util.Map<String, Object> root2 = new java.util.LinkedHashMap<>();
+            root2.put("Width", 2); root2.put("Height", 1); root2.put("Length", 1);
+            java.util.List<Object> pal2 = new java.util.ArrayList<>();
+            java.util.Map<String, Object> st2a = new java.util.LinkedHashMap<>();
+            st2a.put("Name", "minecraft:stone");
+            java.util.Map<String, Object> st2b = new java.util.LinkedHashMap<>();
+            st2b.put("Name", "minecraft:air");
+            pal2.add(st2a); pal2.add(st2b);
+            root2.put("Palette", pal2);
+            root2.put("BlockData", new byte[]{0, 1});
+            var mth2 = dev.ghbot.schematic.SchematicImporter.class
                     .getDeclaredMethod("importSponge", java.util.Map.class, int.class);
-            mth.setAccessible(true);
-            Object vmSponge = mth.invoke(null, root3, 3);
-            check("sponge v3 map-palette imports", vmSponge instanceof dev.ghbot.builder.VoxelModel
-                    && ((dev.ghbot.builder.VoxelModel) vmSponge).size() == 1);
+            mth2.setAccessible(true);
+            Object vmSponge2 = mth2.invoke(null, root2, 2);
+            check("sponge v2 list-palette imports", vmSponge2 instanceof dev.ghbot.builder.VoxelModel
+                    && ((dev.ghbot.builder.VoxelModel) vmSponge2).size() == 1);
         } catch (Throwable t) {
-            System.out.println("  [FAIL-DBG] sponge v3 import: " + t);
-            check("sponge v3 map-palette imports", false);
+            System.out.println("  [FAIL-DBG] sponge v2 import: " + t);
+            check("sponge v2 list-palette imports", false);
         }
         // v0.21.40 — vision support flags + imageToSpec fallback message
         check("gemini claims vision", new dev.ghbot.ai.GeminiClient(true, "gemini-2.5-flash", "k", "https://generativelanguage.googleapis.com/").supportsVision());
