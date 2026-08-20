@@ -35,12 +35,23 @@ public final class SchematicImporter {
     }
 
     /** Sponge v2/v3: Width/Height/Length, Palette (list), BlockData (byte[] palette ids, xzy). */
+    /** v0.21.45 — "minecraft:oak_stairs[facing=north]" → "oak_stairs" (drop namespace + properties). */
+    private static String stripProps(String name) {
+        if (name == null) return null;
+        String s = name.trim().replace("minecraft:", "");
+        int b = s.indexOf('[');
+        if (b >= 0) s = s.substring(0, b);
+        return s;
+    }
+
     private static VoxelModel importSponge(Map<String, Object> root, int version) {
         int w = ((Number) root.get("Width")).intValue();
         int h = ((Number) root.get("Height")).intValue();
         int d = ((Number) root.get("Length")).intValue();
-        // v0.21.44 — Sponge v2 stores Palette as a LIST, v3 as a COMPOUND (index → blockstate).
-        // The old code only handled the list and threw ClassCastException on .schem (v3) imports.
+        // v0.21.44 — Sponge v2 stores Palette as a LIST of compounds, v3 as a COMPOUND.
+        // v0.21.45 — official Sponge v3 palette VALUES are blockstate STRINGS
+        // ("minecraft:stone_bricks" or "minecraft:oak_stairs[facing=north]"), not compounds.
+        // Both list-of-compound (v2) and compound-of-string (v3) are now handled.
         java.util.Map<Integer, String> palette = new java.util.HashMap<>();
         Object palObj = root.get("Palette");
         if (palObj instanceof java.util.List<?> palList) {
@@ -48,7 +59,9 @@ public final class SchematicImporter {
                 Object e = palList.get(i);
                 if (e instanceof java.util.Map<?, ?> em) {
                     Object name = em.get("Name");
-                    if (name != null) palette.put(i, String.valueOf(name).replace("minecraft:", ""));
+                    if (name != null) palette.put(i, stripProps(String.valueOf(name)));
+                } else if (e instanceof String s) {
+                    palette.put(i, stripProps(s));
                 }
             }
         } else if (palObj instanceof java.util.Map<?, ?> palMap) {
@@ -61,7 +74,9 @@ public final class SchematicImporter {
                 Object v = en.getValue();
                 if (v instanceof java.util.Map<?, ?> vm) {
                     Object name = vm.get("Name");
-                    if (name != null) palette.put(idx, String.valueOf(name).replace("minecraft:", ""));
+                    if (name != null) palette.put(idx, stripProps(String.valueOf(name)));
+                } else if (v instanceof String s) {
+                    palette.put(idx, stripProps(s));
                 }
             }
         }

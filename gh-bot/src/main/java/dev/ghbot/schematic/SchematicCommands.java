@@ -21,7 +21,8 @@ public final class SchematicCommands {
 
     private SchematicCommands() {}
 
-    public static void register(GHBot bot, CommandBridge bridge, SchematicService schematics, WIBLogger log) {
+    public static void register(GHBot bot, CommandBridge bridge, SchematicService schematics,
+                                dev.ghbot.review.GhostService ghosts, WIBLogger log) {
         CommandRegistry r = bridge.registryOf(bot);
 
         // ── schem <name> <prompt> [format|all] : design → export ──
@@ -95,8 +96,42 @@ public final class SchematicCommands {
                 sender.sendMessage("§c[" + b.id() + "] No such file in the library. Try " + b.id() + " library");
                 return;
             }
-            sender.sendMessage("§7[" + b.id() + "] Paste from schematics (importers land with the codec readers in a later phase). "
-                    + "File found: " + f.getFileName() + " (" + safeLen(f) + " bytes)");
+            try {
+                // v0.21.45 — paste actually reads the file and stages it as a ghost (same review
+                // flow as build: approve/deny/redo/export). Supports Sponge v2/v3, Classic,
+                // Vanilla .nbt and Litematica files already in the library.
+                byte[] data = Files.readAllBytes(f);
+                dev.ghbot.builder.VoxelModel model = dev.ghbot.schematic.SchematicImporter.importFile(data);
+                if (model == null || model.size() == 0) {
+                    sender.sendMessage("§c[" + b.id() + "] Couldn't parse " + f.getFileName()
+                            + " (" + safeLen(f) + " bytes) — unsupported or empty format.");
+                    return;
+                }
+                Location base = base(sender, b);
+                if (base == null) {
+                    sender.sendMessage("§c[" + b.id() + "] Paste needs a location (stand there, or use 'at <where>').");
+                    return;
+                }
+                String name = f.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+                boolean animate = b.memory().get("animate") instanceof Boolean ab && ab;
+                ghosts.stage(b, model, name, base, sender, animate);
+                // surface the viewer URL + inline preview like the build tool does
+                String viewOut = dev.ghbot.agent.ToolBridge.run(bridge, b, "view", new String[0]);
+                java.util.regex.Matcher vu = java.util.regex.Pattern
+                        .compile("(https?://[^/\\s]+)/view/([a-z0-9-]+)").matcher(viewOut);
+                if (vu.find()) {
+                    String vbase = vu.group(1), jobId = vu.group(2);
+                    sender.sendMessage("§a[" + b.id() + "] Pasted §f" + name + "§a (" + model.size()
+                            + " blocks) — review: " + vbase + "/view/" + jobId
+                            + "\nPREVIEW_IMG: " + vbase + "/view/" + jobId + "/preview.png");
+                } else {
+                    sender.sendMessage("§a[" + b.id() + "] Pasted §f" + name + "§a (" + model.size()
+                            + " blocks) — walk around it, then approve / deny / redo / export.");
+                }
+            } catch (Throwable t) {
+                sender.sendMessage("§c[" + b.id() + "] Paste failed: "
+                        + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
+            }
         }, CommandRegistry.Meta.of("Paste a schematic from the library", "paste <file> [where]"));
 
         // ── library : list saved schematics ──
@@ -115,6 +150,26 @@ public final class SchematicCommands {
                 sender.sendMessage("§cLibrary error: " + e.getMessage());
             }
         }, CommandRegistry.Meta.of("Browse the schematic library", "library"));
+    }
+
+    /** Origin for paste from a non-player sender: bot memory origin → world spawn. */
+    private static Location base(CommandSender sender, GHBot bot) {
+        if (sender instanceof Player p) return p.getLocation();
+        Object o = bot.memory().get("terrain.origin");
+        if (o instanceof String s) {
+            try {
+                String[] p = s.split(",");
+                if (p.length == 3 && sender.getServer() != null && !sender.getServer().getWorlds().isEmpty()) {
+                    var w = sender.getServer().getWorlds().get(0);
+                    return new Location(w, Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()), Integer.parseInt(p[2].trim()));
+                }
+            } catch (NumberFormatException ignored) {}
+        }
+        try {
+            if (sender.getServer() != null && !sender.getServer().getWorlds().isEmpty())
+                return sender.getServer().getWorlds().get(0).getSpawnLocation();
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     private static dev.ghbot.builder.VoxelModel buildFromChanges(dev.ghbot.review.GhostService.Staged s) {

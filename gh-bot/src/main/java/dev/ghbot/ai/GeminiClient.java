@@ -35,12 +35,16 @@ public class GeminiClient implements AIClient {
 
     /** v0.21.44 — send a request on the async client so it can be cancelled mid-flight. */
     private <T> HttpResponse<T> sendCall(HttpRequest req, HttpResponse.BodyHandler<T> handler) throws Exception {
+        if (cancelled) throw new RuntimeException(id() + ": request cancelled");
         cancelled = false;
         var f = http.sendAsync(req, handler);
         inFlight = f;
         try {
             return f.get();
         } catch (java.util.concurrent.CancellationException ce) {
+            throw new RuntimeException(id() + ": request cancelled");
+        } catch (InterruptedException ie) {
+            Thread.interrupted();   // clear interrupt flag (pooled thread) — stop requested
             throw new RuntimeException(id() + ": request cancelled");
         } catch (java.util.concurrent.ExecutionException ee) {
             if (ee.getCause() instanceof Exception e) throw e;

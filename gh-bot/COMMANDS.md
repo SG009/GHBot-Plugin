@@ -48,8 +48,8 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · in web console: ty
 | `editspec` | Preview the edit ops an instruction would generate | `editspec <target> <instruction>` |
 | `schem` | Design + export a schematic | `schem <name> <prompt> [format\|all]` |
 | `schem download` | Download a schematic from the internet | `schem download <name> <url>` |
-| `schem import` ✓ (v0.21.44) | Import a schematic file into the dataset | `schem import <file> [name]` |
-| `paste` ✗ | Paste a schematic in-world | `paste <file> [where]` |
+| `schem import` ✓ (v0.21.45) | Import a schematic file into the dataset | `schem import <file> [name]` |
+| `paste` ✓ (v0.21.45) | Paste a schematic in-world | `paste <file> [where]` |
 | `library` ✓ | Browse the schematic library | `library` |
 | `export` | Export the staged build as schematics | `export <name> [format\|all]` |
 | `teach` | Add a library file or staged build to the dataset | `teach <name> [staged]` |

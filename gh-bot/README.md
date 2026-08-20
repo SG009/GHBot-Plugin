@@ -1,18 +1,41 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.21.44 Stop button & Sponge v3 import fix · smoke **372/372 PASS** · jar `GHBot-0.21.44.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.21.44 Stop button + v0.21.45 stop actually aborts + real paste & Sponge v3 string-palette import · smoke **377/377 PASS** · jar `GHBot-0.21.45.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.21.44 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.21.45 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-08-19**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog.
+
+### What's new in v0.21.45 (Stop ACTUALLY aborts + real Paste + Sponge v3 string-palette import)
+From the owner's v0.21.44 re-test — Stop was pressed (10× "stop requested" logged) yet the
+`plan` call still ran its full 2-min timeout, and import/paste were still broken:
+- **Stop now actually stops.** Root cause was a **session-key mismatch**: the chat flow keys
+  sessions `"GH000|<session>"`, but `/api/cancel` stored the stop flag under the raw
+  `<session>` — so the flag never matched, and the in-flight client lookup also missed.
+  Fixed: `ChatService` now maps raw→full keys, tracks the **executing thread** per session,
+  and `requestStop` marks both keys + **interrupts the thread** (all AI clients' `sendCall`
+  now also abort on `InterruptedException`, clearing the interrupt flag for the pooled
+  thread). So a hung `plan`/`build`/`generateSpec` is aborted in ~a second, not 2 minutes —
+  no more token burn. The console button also now disables into "Stopping…" after one press
+  (no more spam of duplicate "Stopped" bubbles).
+- **`paste` actually pastes** (was a stub): it now reads the file, decodes it via
+  `SchematicImporter.importFile` (Sponge v2/v3, Classic, Vanilla .nbt, Litematica), and
+  **stages it as a ghost** — same approve/deny/redo/export review flow as `build`, with the
+  3D viewer URL + inline `PREVIEW_IMG` in the reply. Target = player location / bot origin /
+  world spawn.
+- **Sponge v3 import decodes real files:** official `.schem` v3 palette values are blockstate
+  **strings** (`"0": "minecraft:stone_bricks"`), not compounds — the importer only handled
+  compounds, so real files imported as **0 blocks**. Now handles strings AND strips
+  properties (`minecraft:oak_stairs[facing=north]` → `oak_stairs`).
+- Smoke **377 checks** (new: paste file-resolution + parse, Sponge v3 string palette + props).
 
 ### What's new in v0.21.44 (Stop button + Sponge v3 import fix + batch-test fixes)
 - **⏹ Stop button (the big one):** while a request is running, the **Send button turns into
@@ -77,7 +100,7 @@
   wired into the ghost/build services (previously the wiring passed null).
 - Smoke suite grew to **363 checks** (session eviction + diagnostics).
 
-### What it is (v0.21.44)
+### What it is (v0.21.45)
 GH-Bot is a **PaperMC plugin** (Java 21, Paper API 1.21.11, single jar, no external deps —
 even JSON is hand-rolled) that turns a Minecraft server into a **hands-off AI builder + admin
 agent**. The owner runs it on a **phone** (Termux, 6 GB RAM, Paper 1.21.11 + Geyser/Floodgate
@@ -95,7 +118,7 @@ was the historical source of drift; see §17 v0.21.33–0.21.38). "100% faithful
 **141 KB / 1,852 blocks**) — hence the **📎 upload button** (v0.21.40) so a 140 KB spec never
 has to be pasted into a chat bubble.
 
-### Feature surface at v0.21.44
+### Feature surface at v0.21.45
 - **Builder:** `build <prompt>` → JSON spec or DesignSpec primitives → ghost stage → `approve/deny/redo/export`; `--direct`; `plan` (text-only); `cancel`; `critique`. Pasting a JSON spec executes it directly (v0.21.39). No template fallback — failures are reported with a logged reason (v0.21.38).
 - **Review surfaces:** 3D web viewer `/view/<id>` (voxel data.json, camera centers the build's true vertical midpoint v0.21.31) + **server-side isometric preview image** `/view/<id>/preview.png` (v0.21.34) rendered **inline in the chat bubble** (v0.21.35) + in-game ghost.
 - **Web console `/console`:** SSE streaming chat (quoted-JSON chunks v0.21.25), provider-agnostic tool protocol accepting BOTH `⟦tool:…⟧` and `[tool:…]` markers (v0.21.37), auto-tools for plain-language commands (`scan …`, `find …`, `build …`, `deny`, `approve`, `admin …`, `confirm CONF-…`, …), on-device secretary (WebLLM/Transformers.js, optional), **📎 upload button** (v0.21.40): `.json` → staged directly; image → vision → JSON spec → staged.
@@ -120,7 +143,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **372 checks**):
+2. Recompile + run the smoke suite (currently **377 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -188,7 +211,7 @@ Hard constraints:
 
 ## Quick start (batch-test checklist)
 
-1. Drop `GHBot-0.21.44.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
+1. Drop `GHBot-0.21.45.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
 2. In-game: `@GH000 help` (lists ~27 commands) · `@GH000 scan here` · `@GH000 build a house` → walk the ghost → `approve`/`deny`/`redo`.
 3. **Browser review:** `server.web.enabled: true` → restart → `@GH000 build a tower` → `@GH000 view` → open URL → orbit → **Approve**.
 4. **Web chat:** open `http://<phone-ip>:8580/chat` (old page) or `/console` (agent console). **Secretary (no cloud):** click **Load secretary** — needs Chrome/Edge on Android. WebGPU requires a secure context, so open `http://127.0.0.1:8580/console` on the phone itself (or via an https tunnel) — plain `http://<LAN-ip>` won't expose WebGPU. Pick **2B** for a 6 GB phone, **4B** for max quality when the server is idle. **Workflow:** ask the secretary to draft a request → edit its `⟦draft⟧` card → **Send to technician** (chips still execute on the server directly). **Upload (v0.21.40):** the **📎** button next to the input — pick a `.json` build spec (staged directly, no paste) or an image (GH-bot sees it → generates the build).
@@ -216,8 +239,8 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (372 checks, all passing) · setup-build.sh (sandbox toolchain restore)
-releases/GHBot-0.21.44.jar            (current ship; old jars removed once confirmed)
+└── tools/SmokeTest.java              (377 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+releases/GHBot-0.21.45.jar            (current ship; old jars removed once confirmed)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```
 

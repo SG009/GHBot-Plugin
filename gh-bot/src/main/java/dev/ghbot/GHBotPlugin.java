@@ -466,7 +466,7 @@ public class GHBotPlugin extends JavaPlugin {
         AiCommands.register(bot, bridge, chatService);
         BuildCommands.register(bot, bridge, buildService, providers, ghostService, dataset, log);
         ReviewCommands.register(bot, bridge, ghostService);
-        SchematicCommands.register(bot, bridge, schematics, log);
+        SchematicCommands.register(bot, bridge, schematics, ghostService, log);   // v0.21.45 — paste stages a ghost
         DatasetCommands.register(bot, bridge, schematics, dataset, downloader, ghostService, log);
         PreviewCommands.register(bot, bridge, previews, schematics, cfg.webEnabled() ? cfg.webPort() : -1);
         EditCommands.register(bot, bridge, editService2, providers, log);

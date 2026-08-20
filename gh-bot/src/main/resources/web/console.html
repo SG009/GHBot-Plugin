@@ -169,24 +169,29 @@ function add(cls,txt){ return addBubble(cls==='u'?'user':'bot', txt, cls==='b'?'
 
 let busy=false;
 let currentAbort=null;   // v0.21.44 — Stop button: abort controller for the in-flight fetch
+let stopSent=false;      // v0.21.45 — only send /api/cancel once (no spam)
 const sendBtn=document.getElementById('sendBtn');
 // v0.21.44 — while a request is running the Send button becomes STOP (like ChatGPT/Claude).
 function setSendStop(){
-  sendBtn.textContent = busy ? 'Stop' : 'Send';
+  if(busy && stopSent){ sendBtn.textContent='Stopping…'; sendBtn.disabled=true; }
+  else { sendBtn.textContent = busy ? 'Stop' : 'Send'; sendBtn.disabled=false; }
   sendBtn.classList.toggle('stop', busy);
 }
 async function send(){
   if(busy){ doStop(); return; }   // button is now Stop — cancel the running request
   const t=inp.value.trim(); if(!t) return;
-  inp.value=''; busy=true; setSendStop();
+  inp.value=''; busy=true; stopSent=false; setSendStop();
   add('u',t);
   try{ if(localEngine){ await sendLocal(t); } else { await sendToTechnician(t); } }
-  finally{ busy=false; setSendStop(); }
+  finally{ busy=false; stopSent=false; setSendStop(); }
 }
-async function q(t){ if(busy) return; busy=true; setSendStop(); add('u',t); try{ await sendToTechnician(t); }finally{ busy=false; setSendStop(); } }
-// v0.21.44 — Stop: tell the server to abort the AI call (saves provider tokens), then drop
+async function q(t){ if(busy) return; busy=true; stopSent=false; setSendStop(); add('u',t); try{ await sendToTechnician(t); }finally{ busy=false; stopSent=false; setSendStop(); } }
+// v0.21.44/45 — Stop: tell the server to abort the AI call (saves provider tokens), then drop
 // the client connection. Server-side cancel works even for hanging plan/build calls.
+// Only the FIRST press fires; the button turns into a disabled "Stopping…" so you can't spam.
 async function doStop(){
+  if(stopSent) return;
+  stopSent=true; setSendStop();
   try{ await fetch('/api/cancel?session='+sessionId,{method:'POST'}); }catch(e){}
   if(currentAbort){ try{ currentAbort.abort(); }catch(e){} }
   add('b','⏹ **Stopped.** Request cancelled — no more tokens burned.');

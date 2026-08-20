@@ -35,19 +35,31 @@ public class ChatService {
 
     // v0.21.44 — Stop button: per-session stop flag + the client currently being called
     // for that session, so /api/cancel can abort the in-flight AI request (saves tokens).
+    // v0.21.45 — keys must MATCH the chat flow's "bot|session" key; also track the
+    // executing thread so Stop can interrupt a hung plan/build call (f.get() aborts).
     private final Map<String, Boolean> sessionStop = new ConcurrentHashMap<>();
     private final Map<String, AIClient> sessionActiveClient = new ConcurrentHashMap<>();
+    private final Map<String, String> sessionFull = new ConcurrentHashMap<>();   // raw session → "bot|session"
+    private final Map<String, Thread> sessionActiveThread = new ConcurrentHashMap<>();
 
-    /** v0.21.44 — request the session's in-flight AI call be stopped (web console Stop button). */
+    /** v0.21.44/45 — request the session's in-flight AI call be stopped (web console Stop button). */
     public void requestStop(String sessionKey) {
-        String key = (sessionKey == null) ? "" : sessionKey;
-        sessionStop.put(key, true);
-        // cancel whatever provider is currently blocked for this session; also sweep the
-        // other clients (a hung plan/build call may be on a client we haven't registered).
-        AIClient c = sessionActiveClient.get(key);
+        String raw = (sessionKey == null) ? "" : sessionKey;
+        // the chat flow keys sessions as "bot|session" — mark the stop under BOTH so it matches
+        sessionStop.put(raw, true);
+        String full = sessionFull.get(raw);
+        if (full != null) sessionStop.put(full, true);
+        // interrupt the thread blocked in the AI call (plan/build generateSpec) — f.get() aborts
+        Thread t = sessionActiveThread.get(raw);
+        if (t == null && full != null) t = sessionActiveThread.get(full);
+        if (t != null) t.interrupt();
+        // cancel whatever provider is currently blocked for this session (and sweep the rest:
+        // a hung plan/build call may be on a client we haven't registered yet)
+        AIClient c = sessionActiveClient.get(raw);
+        if (c == null && full != null) c = sessionActiveClient.get(full);
         if (c != null) c.cancelActiveCall();
         for (AIClient any : providers.allConfigured()) any.cancelActiveCall();
-        log.info("[GHBot] stop requested for session " + key);
+        log.info("[GHBot] stop requested for session " + raw);
     }
 
     /** v0.21.44 — true if a Stop was requested for this session (checked between chunks). */
@@ -157,6 +169,23 @@ public class ChatService {
                              java.util.function.Consumer<String> onChunk,
                              dev.ghbot.agent.ToolExecutor tools) {
         String key = bot.id() + "|" + sessionKey;
+        // v0.21.45 — register this session's raw key → full key and the executing thread so
+        // /api/cancel can find the right stop flag AND interrupt a hung plan/build call.
+        sessionFull.put(sessionKey, key);
+        sessionActiveThread.put(sessionKey, Thread.currentThread());
+        sessionActiveThread.put(key, Thread.currentThread());
+        try {
+            return streamChatInner(bot, sessionKey, key, text, onChunk, tools);
+        } finally {
+            sessionFull.remove(sessionKey);
+            sessionActiveThread.remove(sessionKey);
+            sessionActiveThread.remove(key);
+        }
+    }
+
+    private String streamChatInner(GHBot bot, String sessionKey, String key, String text,
+                                   java.util.function.Consumer<String> onChunk,
+                                   dev.ghbot.agent.ToolExecutor tools) {
         sessionStop.remove(key);   // v0.21.44 — fresh start: clear any previous stop
         List<AIClient.ChatMessage> hist = getOrCreateSession(key);
         hist.add(new AIClient.ChatMessage("user", text));
