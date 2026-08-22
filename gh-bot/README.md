@@ -1,6 +1,6 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) & hardening (vanilla constraints, heightmap persistence, coordinate parsing, admin-only guard) · smoke **414/414 PASS** · jar `GHBot-0.22.1.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) & hardening (vanilla constraints, heightmap persistence, coordinate parsing, admin-only guard) · smoke **420/420 PASS** · jar `GHBot-0.22.1.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
@@ -199,7 +199,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **414 checks**):
+2. Recompile + run the smoke suite (currently **420 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -295,7 +295,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (414 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (420 checks, all passing) · setup-build.sh (sandbox toolchain restore)
 releases/GHBot-0.22.1.jar            (current ship; old jars removed once confirmed)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```

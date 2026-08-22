@@ -1,19 +1,19 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.22.0 JARVIS-FOR-ADMIN + v0.22.1 Eyes-as-Data & hardening · smoke 414/414 PASS · jar `GHBot-0.22.1.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.22.0 JARVIS-FOR-ADMIN + v0.22.1 Eyes-as-Data & hardening · smoke 420/420 PASS · jar `GHBot-0.22.1.jar`**
 
 > A hands-off AI-bot that replaces the admin for managing a Minecraft server and in-game designs.
 
 ## Quick pointers
 
 - **Start here for the full picture:** [`gh-bot/README.md`](gh-bot/README.md) — contains the
-  **agent handoff brief** (current state at v0.21.41: what the plugin is, the JSON-spec contract,
+  **agent handoff brief** (current state at v0.22.1: what the plugin is, the JSON-spec contract,
   build/test/ship commands, sandbox constraints, open backlog).
 - **Full history:** [`ai-builder-bot-plan.md`](ai-builder-bot-plan.md) — master plan + §17
   per-version changelog (v0.21.33 → v0.21.41: JSON method evolution + hardening).
 - **Plugin source:** [`gh-bot/`](gh-bot/) — Java 21, Paper API 1.21.11, package `dev.ghbot.*`
   (never `dev.ghbot.build`), hand-rolled JSON (no Gson).
-- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (414 checks) + `setup-build.sh` (restores the
+- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (420 checks) + `setup-build.sh` (restores the
   JDK21/Gradle toolchain into /tmp — the dev sandbox resets every turn). For sandboxes where
   only GitHub/PyPI/npm egress is allowed (no Gradle/Maven/adoptium), `gh-bot/tools/sandbox-build.sh`
   reproduces the same compile+smoke+jar using a PyPI JDK21 runtime + Eclipse ECJ + a public repo's

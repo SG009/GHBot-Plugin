@@ -1,7 +1,9 @@
 # GH-Bot — smoke suite on every push
 # Builds the plugin jar with the Gradle wrapper (Java 21, Paper API 1.21.11) and
-# runs the headless smoke suite (tools/SmokeTest.java, currently 355 checks) that
-# the project uses as its regression gate. No Paper server needed — pure JVM.
+# runs the headless smoke suite (tools/SmokeTest.java — see READMEs for the
+# current check count) that the project uses as its regression gate, then asserts
+# the docs' smoke/version claims match reality (tools/check-docs.sh).
+# No Paper server needed — pure JVM.
 
 name: smoke
 
@@ -44,4 +46,12 @@ jobs:
           CP="$JAR:$(find ~/.gradle/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
           mkdir -p /tmp/smoke-classes
           javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
-          java -Djava.io.tmpdir=/tmp -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest
+          java -Djava.io.tmpdir=/tmp -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest | tee /tmp/smoke.log
+
+      - name: Doc-consistency check (README smoke/version claims vs reality)
+        shell: bash
+        run: |
+          set -euo pipefail
+          N=$(grep -o '([0-9]* passed,' /tmp/smoke.log | grep -o '[0-9]*' | head -1)
+          test -n "$N"
+          bash tools/check-docs.sh "$N"

@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.22.0 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.22.1 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
