@@ -69,7 +69,11 @@ public final class DatasetCommands {
                 }
                 String file = ctx.args()[1];
                 String name = ctx.args().length >= 3 ? ctx.args()[2] : file.replaceFirst("\\.[^.]+$", "");
-                Path f = schematics.dir().resolve(file);
+                Path f = schematics.resolveInLibrary(file);
+                if (f == null) {
+                    ctx.sender().sendMessage("§c[" + b.id() + "] Invalid file name — it must live inside the schematics library.");
+                    return;
+                }
                 if (!Files.exists(f)) {
                     ctx.sender().sendMessage("§c[" + b.id() + "] No such file: " + file);
                     return;

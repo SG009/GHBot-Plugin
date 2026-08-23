@@ -2,15 +2,9 @@ package dev.ghbot.agent;
 
 import dev.ghbot.bot.GHBot;
 import dev.ghbot.command.CommandBridge;
-import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
-import org.bukkit.permissions.Permission;
-import org.bukkit.permissions.PermissionAttachment;
-import org.bukkit.permissions.PermissionAttachmentInfo;
-import org.bukkit.plugin.Plugin;
 
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * v0.21.6 — Tool Bridge. Routes a tool call through a bot's own command
@@ -23,42 +17,14 @@ public final class ToolBridge {
 
     private ToolBridge() {}
 
-    /** A CommandSender that captures every message instead of showing it. */
-    public static final class Capture implements CommandSender {
-        private final StringBuilder sb = new StringBuilder();
-
-        @Override public void sendMessage(String message) {
-            if (message == null || message.isEmpty()) return;
-            String clean = stripColor(message);
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(clean);
-        }
-        @Override public void sendMessage(String... messages) { for (String m : messages) sendMessage(m); }
-        @Override public void sendMessage(UUID uuid, String message) { sendMessage(message); }
-        @Override public void sendMessage(UUID uuid, String... messages) { for (String m : messages) sendMessage(m); }
-        @Override public Server getServer() { return org.bukkit.Bukkit.getServer(); }
-        @Override public String getName() { return "GH-Bot tool"; }
-        @Override public net.kyori.adventure.text.Component name() {
-            return net.kyori.adventure.text.Component.text("GH-Bot tool");
-        }
-        @Override public Spigot spigot() { return null; }
-        @Override public boolean isPermissionSet(String name) { return true; }
-        @Override public boolean isPermissionSet(Permission perm) { return true; }
-        @Override public boolean hasPermission(String name) { return true; }
-        @Override public boolean hasPermission(Permission perm) { return true; }
-        @Override public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value) { return null; }
-        @Override public PermissionAttachment addAttachment(Plugin plugin) { return null; }
-        @Override public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value, int ticks) { return null; }
-        @Override public PermissionAttachment addAttachment(Plugin plugin, int ticks) { return null; }
-        @Override public void removeAttachment(PermissionAttachment attachment) {}
-        @Override public void recalculatePermissions() {}
-        @Override public Set<PermissionAttachmentInfo> getEffectivePermissions() { return java.util.Collections.emptySet(); }
-        @Override public boolean isOp() { return true; }
-        @Override public void setOp(boolean value) {}
-        public UUID getUniqueId() { return UUID.randomUUID(); }
-
-        public String text() { return sb.toString().trim(); }
-    }
+    /**
+     * A CommandSender that captures every message instead of showing it.
+     * v0.22.2 — now a thin alias over dev.ghbot.command.CapturingSender: captures
+     * legacy String, Adventure Component and bungee BaseComponent surfaces
+     * (the old String-only version silently dropped Component output and
+     * returned null from spigot() → NPE risk). Class name kept for callers.
+     */
+    public static final class Capture extends dev.ghbot.command.CapturingSender {}
 
     /** Strip Minecraft chat-color codes (§x). */
     public static String stripColor(String s) {

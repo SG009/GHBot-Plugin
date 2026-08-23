@@ -227,10 +227,16 @@ public final class EditCommands {
             }
         }
         // bbox-aware geometry (v0.21): ops are anchored to the actual structure
+        // bbox() layout: {0=minX, 1=minY, 2=minZ, 3=maxX, 4=maxY, 5=maxZ}
+        // v0.22.2 — FIX: the template math previously read this array as if its
+        // layout were {minX, minZ, minY, maxX, maxZ, maxY} — every Y/Z extent and
+        // position was transposed (roof at y=maxZ+1, columns at z=maxY, …) whenever
+        // a structure's height != depth. Smoke fixtures were Y/Z-symmetric so the
+        // swap was invisible (see AUDIT-pillar1-2-go-no-go.md P1-1).
         int[] bb = bbox(region);
-        int w = bb == null ? 0 : bb[3] - bb[0] + 1;
-        int h = bb == null ? 0 : bb[5] - bb[2] + 1;
-        int d = bb == null ? 0 : bb[4] - bb[1] + 1;
+        int w = bb == null ? 0 : bb[3] - bb[0] + 1;   // x extent
+        int h = bb == null ? 0 : bb[4] - bb[1] + 1;   // y extent (was: z extent)
+        int d = bb == null ? 0 : bb[5] - bb[2] + 1;   // z extent (was: y extent)
 
         // "add <n> <block> column(s)" at the structure's real corners
         if (ins.contains("column") || ins.contains("pillar")) {
@@ -246,26 +252,27 @@ public final class EditCommands {
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", "1", "z", "0", "y0", "0", "y1", "5", "mat", mat)));
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", "0", "z", "1", "y0", "0", "y1", "5", "mat", mat)));
             } else {
-                int cx0 = bb[0], cz0 = bb[1], cx1 = bb[3], cz1 = bb[4];
+                int cx0 = bb[0], cz0 = bb[2], cx1 = bb[3], cz1 = bb[5];  // z from minZ/maxZ (was minY/maxY)
+                int yBase = bb[1];                                       // y from minY (was minZ)
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", String.valueOf(cx0), "z", String.valueOf(cz0),
-                        "y0", String.valueOf(bb[2]), "y1", String.valueOf(top), "mat", mat)));
+                        "y0", String.valueOf(yBase), "y1", String.valueOf(top), "mat", mat)));
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", String.valueOf(cx0), "z", String.valueOf(cz1),
-                        "y0", String.valueOf(bb[2]), "y1", String.valueOf(top), "mat", mat)));
+                        "y0", String.valueOf(yBase), "y1", String.valueOf(top), "mat", mat)));
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", String.valueOf(cx1), "z", String.valueOf(cz0),
-                        "y0", String.valueOf(bb[2]), "y1", String.valueOf(top), "mat", mat)));
+                        "y0", String.valueOf(yBase), "y1", String.valueOf(top), "mat", mat)));
                 s.ops.add(new DesignSpec.Op("column", Map.of("x", String.valueOf(cx1), "z", String.valueOf(cz1),
-                        "y0", String.valueOf(bb[2]), "y1", String.valueOf(top), "mat", mat)));
+                        "y0", String.valueOf(yBase), "y1", String.valueOf(top), "mat", mat)));
             }
             return s;
         }
         // "add a roof" — cone sized to the structure's roof_center
         if (ins.contains("roof")) {
             String mat = ins.contains("spruce") ? "spruce_planks" : "dark_oak_planks";
-            int cx = bb == null ? 0 : (bb[0] + bb[3]) / 2;
-            int cz = bb == null ? 0 : (bb[1] + bb[4]) / 2;
+            int cx = bb == null ? 0 : (bb[0] + bb[3]) / 2;              // x center
+            int cz = bb == null ? 0 : (bb[2] + bb[5]) / 2;              // z center (was y center)
             int radius = bb == null ? 5 : Math.max(2, Math.max(w, d) / 2);
             int height = bb == null ? 3 : Math.max(2, Math.min(6, Math.max(w, d) / 2));
-            int y = bb == null ? 6 : bb[5] + 1;
+            int y = bb == null ? 6 : bb[4] + 1;                         // over maxY (was maxZ+1)
             s.ops.add(new DesignSpec.Op("cone", Map.of("cx", String.valueOf(cx), "cz", String.valueOf(cz),
                     "radius", String.valueOf(radius), "height", String.valueOf(height),
                     "y", String.valueOf(y), "mat", mat)));
@@ -276,8 +283,8 @@ public final class EditCommands {
             String face = ins.contains("north") ? "north" : ins.contains("east") ? "east"
                     : ins.contains("west") ? "west" : ins.contains("south") ? "south" : "north";
             int cx = bb == null ? 0 : (bb[0] + bb[3]) / 2;
-            int cz = bb == null ? 0 : (bb[1] + bb[4]) / 2;
-            int y = bb == null ? 2 : Math.min(bb[2] + 2, Math.max(bb[2] + 1, bb[5] - 2));
+            int cz = bb == null ? 0 : (bb[2] + bb[5]) / 2;              // z center (was y center)
+            int y = bb == null ? 2 : Math.min(bb[1] + 2, Math.max(bb[1] + 1, bb[4] - 2)); // from minY/maxY
             int count = bb == null ? 3 : Math.max(2, Math.min(6, Math.max(w, d) / 3));
             s.ops.add(new DesignSpec.Op("window_row", Map.of("cx", String.valueOf(cx), "cz", String.valueOf(cz),
                     "y", String.valueOf(y), "count", String.valueOf(count), "spacing", "2",
@@ -289,8 +296,8 @@ public final class EditCommands {
             String face = ins.contains("north") ? "north" : ins.contains("east") ? "east"
                     : ins.contains("west") ? "west" : "south";
             int cx = bb == null ? 0 : (bb[0] + bb[3]) / 2;
-            int cz = bb == null ? 0 : (bb[1] + bb[4]) / 2;
-            int y = bb == null ? 0 : bb[2];
+            int cz = bb == null ? 0 : (bb[2] + bb[5]) / 2;              // z center (was y center)
+            int y = bb == null ? 0 : bb[1];                             // foundation level (was minZ)
             s.ops.add(new DesignSpec.Op("door", Map.of("cx", String.valueOf(cx), "cz", String.valueOf(cz),
                     "y", String.valueOf(y), "face", face, "mat", "dark_oak_door", "frame", "dark_oak_planks")));
             return s;
@@ -298,8 +305,8 @@ public final class EditCommands {
         // "add a tree" — at the structure center, on the foundation
         if (ins.contains("tree")) {
             int x = bb == null ? 0 : (bb[0] + bb[3]) / 2;
-            int z = bb == null ? 0 : (bb[1] + bb[4]) / 2;
-            int y = bb == null ? 1 : bb[2] + 1;
+            int z = bb == null ? 0 : (bb[2] + bb[5]) / 2;               // z center (was y center)
+            int y = bb == null ? 1 : bb[1] + 1;                          // on minY+1 (was minZ+1)
             s.ops.add(new DesignSpec.Op("tree", Map.of("x", String.valueOf(x), "z", String.valueOf(z),
                     "y", String.valueOf(y), "height", "4")));
             return s;

@@ -44,6 +44,25 @@ public class SchematicService {
     public Path dir() { return schematicsDir; }
     public List<SchematicCodec> codecs() { return codecs; }
 
+    /**
+     * v0.22.2 — resolve a user-supplied library file name SAFELY (AUDIT P1-3):
+     * the path is normalized and must stay inside the schematics directory —
+     * `../../server.properties` style traversal returns null. No extension
+     * allowlist (the importer sniffs content); an empty/blank name returns null.
+     */
+    public Path resolveInLibrary(String name) {
+        if (name == null || name.isBlank()) return null;
+        Path base = schematicsDir.toAbsolutePath().normalize();
+        Path f;
+        try {
+            f = base.resolve(name).normalize();
+        } catch (Exception e) {
+            return null;
+        }
+        if (!f.startsWith(base)) return null;
+        return f;
+    }
+
     /** Export a voxel model to files. format "all" or a codec id. Returns written paths. */
     public List<Path> export(String name, VoxelModel model, String format) throws IOException {
         Files.createDirectories(schematicsDir);

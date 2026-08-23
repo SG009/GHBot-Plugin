@@ -92,7 +92,11 @@ public final class SchematicCommands {
                 return;
             }
             String file = ctx.args()[0];
-            Path f = schematics.dir().resolve(file);
+            Path f = schematics.resolveInLibrary(file);
+            if (f == null) {
+                sender.sendMessage("§c[" + b.id() + "] Invalid file name — it must live inside the schematics library.");
+                return;
+            }
             if (!Files.exists(f)) {
                 sender.sendMessage("§c[" + b.id() + "] No such file in the library. Try " + b.id() + " library");
                 return;

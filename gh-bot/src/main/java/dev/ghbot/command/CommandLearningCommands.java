@@ -27,7 +27,14 @@ public final class CommandLearningCommands {
                 return;
             }
             String line = String.join(" ", ctx.args());
-            String res = learning.dispatchGuardedMany(b, line);
+            String res;
+            if (learning.capture() != null) {
+                // v0.22.2 — Pillar 3: show the command's REAL output (in-game bound), not just "✓ ran".
+                java.util.List<dev.ghbot.command.CmdOutput> outs = learning.capture().captureMany(b, line);
+                res = dev.ghbot.command.CmdOutputCapture.joinInline(outs, true);
+            } else {
+                res = learning.dispatchGuardedMany(b, line);
+            }
             ctx.sender().sendMessage("§7[" + b.id() + "] " + res.replace("\n", "\n§7"));
             if (res.contains("⛔")) {
                 ctx.sender().sendMessage("§e  Blocked commands need: " + b.id() + " confirm <CONF-token>");

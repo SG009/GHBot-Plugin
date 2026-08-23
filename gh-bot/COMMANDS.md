@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.22.1 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.22.2 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -16,7 +16,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `edit <target\|here> <instruction>` | Modify an existing build by instruction |
 | `schem <name> <prompt> [format\|all]` | Design + export a schematic |
 | `schem import <file> [name]` | Import a schematic file (Sponge v2/v3, Classic, Vanilla .nbt, Litematic) |
-| `paste <file> [where]` | Paste a schematic in-world (stages a ghost → review) |
+| `paste <file> [where]` | Paste a schematic in-world (stages a ghost → review). **v0.22.2:** `<file>` must live inside the schematics library (traversal rejected); negative-`Size` `.litematic` regions import correctly |
 | `library` | Browse the schematic library |
 | `export <name> [format\|all]` | Export the staged build as schematics |
 | `approve` / `deny` / `redo` | Review the staged build |
@@ -31,8 +31,8 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `find <block> [radius]` | Find blocks of a type (+ jsonspec of the found coords) |
 | `set <block> <radius>` | Set a region of blocks |
 | `replace <from> <to> [radius]` | Swap block types in a region |
-| `terraform <smooth\|flatten\|raise\|lower> <radius>` | Terrain edits |
-| `undo [minutes]` | Undo last edit / revert recent edits |
+| `terraform [on\|off\|flatten <radius> [block]\|status]` | Surface flatten (only `flatten` is implemented — `smooth`/`raise`/`lower` are backlog, v0.22.2 doc truth) |
+| `undo [minutes]` | Undo last edit / revert recent edits. **Type-fidelity only:** blockstates (stairs facing, sign text) and container contents are NOT restored |
 
 **v0.22.1 — eyes-as-data:** `scan`/`find`/`look` now also emit a **TerrainSpec**
 (`{name,palette,blocks[]}` in absolute coords + origin) to bot memory (`eyes.spec`),
@@ -48,7 +48,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `refresh` | Re-learn the server's command catalog |
 | `confirm <CONF-token>` | Confirm a blocked systemic command |
 | `admin <read\|set\|backup\|restore\|rollback\|reload\|menu> …` | Safe config editing (backup+validate+rollback) |
-| `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token) |
+| `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token). **v0.22.2:** the reply includes the command's **real output** — sender-feed (legacy/Adventure/bungee all captured) + bounded `console-log:` lines for plugins that log instead of replying; long output truncates inline → full text in `logs/cmd/<file>.log` |
 
 ## Pillar 4 — Interact
 | Surface | How |
@@ -72,4 +72,11 @@ to revive.
 - **✅ Pillar 2 upgrade SHIPPED (v0.22.1):** `scan`/`find`/`look` emit **jsonspec**
   (`{name,palette,blocks[]}`) so the bot sees the world as data → better
   `edit`/`set`/`replace`/`terraform`/`undo`.
-- **Pillar 3 upgrade:** `cmd` results captured from the server console into the chat-console.
+- **✅ Pillar 3 upgrade SHIPPED (v0.22.2):** `cmd` results captured into every surface —
+  all-surfaces `CapturingSender` (legacy/Adventure/bungee) + session JUL handler for
+  log-not-reply plugins, bounded inline + `logs/cmd/*.log`. Plan + dependency evidence:
+  `docs/PLAN-pillar3-cmd-output-capture.md`.
+- **Next backlog:** render eyes-specs in the 3D viewer · ambient console-tail feed (needs
+  the log4j-core dependency question resolved) · vision quality auto-verify loop ·
+  `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1) · web-console
+  auth token (Q3).

@@ -50,6 +50,14 @@ public class CommandLearning {
         this.log = log;
     }
 
+    /** v0.22.2 — Pillar 3 capture service (wired once at startup; see GHBotPlugin). */
+    private volatile CmdOutputCapture capture;
+
+    public void setCapture(CmdOutputCapture c) { this.capture = c; }
+
+    /** The shared cmd-output capture service (null before startup wiring finishes). */
+    public CmdOutputCapture capture() { return capture; }
+
     /**
      * True for systemic / destructive commands that must never auto-run from
      * chat, the web console, or the AI agent without an explicit confirmation.
@@ -140,12 +148,22 @@ public class CommandLearning {
                   : new DispatchResult("failed", null, "failed: " + line);
     }
 
-    /** Confirm a previously blocked command (expires after 5 minutes). */
+    /** Confirm a previously blocked command (expires after 5 minutes).
+     *  v0.22.2 — confirmed commands run through the SAME output capture (D5):
+     *  the reply includes what the command actually printed. */
     public synchronized DispatchResult confirm(String token) {
         Pending p = pendingConfirm.remove(token == null ? "" : token.trim());
         if (p == null) return new DispatchResult("unknown", token, "No pending command for that token.");
         if (System.currentTimeMillis() > p.expiryMs) {
             return new DispatchResult("expired", token, "Confirmation token expired — re-run the command.");
+        }
+        if (capture != null) {
+            dev.ghbot.command.CmdOutput out = capture.capture(p.bot, p.line);
+            boolean ok = out.status == dev.ghbot.command.CmdOutput.Status.RAN;
+            String msg = (ok ? "confirmed + ran: " : "confirmed but command failed: ") + p.line
+                    + "\n" + out.inlineGame();
+            audit(p.bot, "cmd", p.line, ok);
+            return new DispatchResult(ok ? "ran" : "failed", token, msg);
         }
         boolean ok = dispatchAsConsole(p.bot, p.line);
         return ok ? new DispatchResult("ran", token, "confirmed + ran: " + p.line)
@@ -179,11 +197,19 @@ public class CommandLearning {
     }
 
     /** v0.21.26 — dispatch a command and CAPTURE its output (for the AI to see).
-     *  Returns the console/chat output the command produced (e.g. the schematic list),
-     *  so the technician isn't blind to what commands print. */
+     *  v0.22.2 — delegates to the Pillar-3 capture service (CapturingSender across all
+     *  three message surfaces + a session JUL handler for plugins that log instead of
+     *  replying). Signature + text contract ("✓ ran … OUTPUT: …" / "⛔ BLOCKED …")
+     *  kept; the AI additionally learns the logs/cmd/ file reference when the output
+     *  was truncated. Falls back to the legacy console path if the service isn't
+     *  wired (early startup). */
     public String dispatchCaptured(GHBot bot, String line) {
-        // v0.21.29 — SAFETY: guardrails ALWAYS run first. Systemic commands (stop/reload/op/ban…)
-        // are BLOCKED and mint a CONF-… token — never executed, even through the capture path.
+        if (capture != null) {
+            dev.ghbot.command.CmdOutput out = capture.capture(bot, line);
+            audit(bot, "cmd", line, out.status != dev.ghbot.command.CmdOutput.Status.FAILED);
+            return out.inlineWeb();
+        }
+        // legacy fallback (capture service not yet constructed)
         if (isSensitive(line)) {
             DispatchResult blocked = dispatchGuarded(bot, line);   // mints CONF token, does NOT run
             audit(bot, "cmd", line, false);
@@ -197,7 +223,6 @@ public class CommandLearning {
         } catch (Throwable t) {
             ok = false;
         }
-        // fallback to console sender if the capture path fails (some commands reject custom senders)
         if (!ok) {
             try {
                 ok = dev.ghbot.core.MainThread.call(() ->
@@ -210,8 +235,6 @@ public class CommandLearning {
         audit(bot, "cmd", line, ok);
         if (!ok) return "✗ failed: " + line;
         if (out.isEmpty()) {
-            // v0.21.29 — command ran but its output went to the server console (not capturable
-            // via a CommandSender). Tell the AI clearly so it stops expecting captured output.
             return "✓ ran: " + line + "\n[output went to the server console — not capturable by the tool]";
         }
         return "✓ ran: " + line + "\nOUTPUT:\n" + out;

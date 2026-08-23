@@ -63,7 +63,11 @@ public final class SchematicImporter {
         // v0.21.46 — return RELATIVE coordinates (drop Position): the paste command anchors
         // the model at its own origin, so world-space offsets from the file are not applied.
         int[] size = region.get("Size") instanceof int[] s0 ? s0 : new int[]{0, 0, 0};
-        int w = size[0], h = size[1], d = size[2];
+        // v0.22.2 — FIX: Litematica Size components are SIGNED (a region can extend in
+        // the negative direction); the BlockStates array is always sized |w|·|h|·|d|.
+        // Feeding negative values into the bit-length inference and loops decoded 0
+        // blocks for many real-world .litematic files (AUDIT P1-2).
+        int w = Math.abs(size[0]), h = Math.abs(size[1]), d = Math.abs(size[2]);
         List<?> pal = region.get("BlockStatePalette") instanceof List<?> pl ? pl : List.of();
         Object statesObj = region.get("BlockStates");
         if (!(statesObj instanceof long[] states)) return null;

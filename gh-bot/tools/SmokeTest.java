@@ -1764,6 +1764,142 @@ public class SmokeTest {
         var stAt = dev.ghbot.terrain.CoordResolver.scanTarget(new String[]{"at", "30", "10", "262"}, 20);
         check("scanTarget strips at", stAt.where() != null && stAt.where().equals("30 10 262"));
 
+        // ── v0.22.2 — Pillar 3 cmd output capture + AUDIT P1-1/2/3 fixes ──
+        // (1) CapturingSender: all three message surfaces (the old String-only proxy dropped
+        //     every Component — the root cause of "output went to the server console")
+        {
+            var capS = new dev.ghbot.command.CapturingSender();
+            capS.sendMessage("plain line");
+            capS.sendMessage(net.kyori.adventure.text.Component.text("component line"));
+            capS.sendPlainMessage("plain-adventure line");
+            capS.spigot().sendMessage(new net.md_5.bungee.api.chat.TextComponent("bungee legacy"));
+            check("capture legacy string", capS.rawText().contains("plain line"));
+            check("capture adventure component (terminal was no-op)", capS.rawText().contains("component line"));
+            check("capture sendPlainMessage funnel", capS.rawText().contains("plain-adventure line"));
+            check("capture spigot bungee (was null NPE)", capS.rawText().contains("bungee legacy"));
+            check("capture order preserved",
+                    capS.rawText().indexOf("plain line") < capS.rawText().indexOf("component line")
+                    && capS.rawText().indexOf("component line") < capS.rawText().indexOf("bungee legacy"));
+            var capC = new dev.ghbot.command.CapturingSender();
+            capC.sendMessage("§aGreen §x§f§f§0§0§0§0Hexy");
+            check("capture strips color codes", capC.rawText().contains("Green") && capC.rawText().contains("Hexy")
+                    && !capC.rawText().contains("§"));
+            var capTrunc = new dev.ghbot.command.CapturingSender();
+            capTrunc.sendMessage("x".repeat(dev.ghbot.command.CapturingSender.MAX_CHARS + 500));
+            check("capture bounded at MAX_CHARS", capTrunc.rawText().length() <= dev.ghbot.command.CapturingSender.MAX_CHARS);
+            check("capture truncation marker + dropped count", capTrunc.text().contains("truncated") && capTrunc.droppedChars() > 0);
+        }
+        // (2) CmdOutput merge + inline budgets + JUL formatting (pure functions)
+        {
+            var blocked = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.BLOCKED,
+                    "stop", "", java.util.List.of(), 0, null, "Systemic command blocked. Confirm: confirm CONF-1");
+            check("cmd-out blocked text contract", blocked.fullText().startsWith("⛔ BLOCKED: stop → ")
+                    && blocked.fullText().contains("CONF-1"));
+            var silent = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN,
+                    "echo hi", "", java.util.List.of(), 0, null);
+            check("cmd-out silent ran", silent.fullText().contains("(no output)") && silent.fullText().startsWith("✓ ran: echo hi"));
+            var feedOnly = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN,
+                    "lp list", "Groups: default", java.util.List.of(), 0, null);
+            check("cmd-out feed format", feedOnly.fullText().contains("OUTPUT:\nGroups: default"));
+            var logOnly = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN,
+                    "dm reload", "", java.util.List.of("[INFO/DeluxeMenus] reloaded"), 0, null);
+            check("cmd-out console-log prefix", logOnly.fullText().contains("console-log: [INFO/DeluxeMenus] reloaded"));
+            String longFeed = String.join("\n", java.util.Collections.nCopies(60, "some output line here"));
+            var longOut = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN,
+                    "lp verbose", longFeed, java.util.List.of(), 0, "logs/cmd/x.log");
+            String inGame = longOut.inlineGame();
+            check("cmd-out game inline bounded", inGame.split("\n").length <= dev.ghbot.command.CmdOutput.GAME_MAX_LINES + 1
+                    && inGame.contains("truncated") && inGame.contains("logs/cmd/x.log"));
+            check("cmd-out web inline keeps more", longOut.inlineWeb().split("\n").length > inGame.split("\n").length);
+            // mergeLogLines: self-filter + feed-dedupe + consecutive collapse + caps
+            var merged = dev.ghbot.command.CmdOutput.mergeLogLines(
+                    java.util.List.of("[INFO] hi", "[INFO] hi", "[INFO] gh own", "dup", "dup", "dup"),
+                    java.util.List.of("SomePlugin", "SomePlugin", "GHBot", "SomePlugin", "SomePlugin", "SomePlugin"),
+                    "GHBot", "prefix dup suffix");
+            check("merge self-filter + collapse", merged.size() == 1 && merged.get(0).equals("[INFO] hi ×2"));
+            java.util.List<String> many = new java.util.ArrayList<>();
+            java.util.List<String> manyNames = new java.util.ArrayList<>();
+            for (int i = 0; i < dev.ghbot.command.CmdOutput.LOG_MAX_LINES + 12; i++) { many.add("line " + i); manyNames.add("P"); }
+            var capped = dev.ghbot.command.CmdOutput.mergeLogLines(many, manyNames, "GHBot", "");
+            check("merge capped with ellipsis", capped.size() <= dev.ghbot.command.CmdOutput.LOG_MAX_LINES + 1
+                    && capped.get(capped.size() - 1).equals("…"));
+            var rec = new java.util.logging.LogRecord(java.util.logging.Level.WARNING, "§cthing happened");
+            rec.setLoggerName("SomePlugin");
+            check("julFormat level/logger/strip", dev.ghbot.command.CmdOutputCapture.julFormat(rec)
+                    .equals("[WARNING/SomePlugin] thing happened"));
+        }
+        // (3) wiring: CommandLearning + capture service (headless-safe behavior)
+        {
+            dev.ghbot.command.CommandLearning cl2 = new dev.ghbot.command.CommandLearning(null, wlog);
+            cl2.setCapture(new dev.ghbot.command.CmdOutputCapture(null, wlog, cl2));
+            check("capture service wired", cl2.capture() != null);
+            var bout = cl2.capture().capture(def, "stop");
+            check("guarded cmd blocked via capture (CONF minted)",
+                    bout.status == dev.ghbot.command.CmdOutput.Status.BLOCKED
+                    && bout.fullText().contains("CONF-"));
+            check("dispatchCaptured blocked contract kept", cl2.dispatchCaptured(def, "stop").startsWith("⛔ BLOCKED: stop"));
+            var headlessOut = cl2.capture().capture(def, "echo hi");
+            check("capture headless degrades to FAILED (no throw)",
+                    headlessOut.status == dev.ghbot.command.CmdOutput.Status.FAILED
+                    && headlessOut.fullText().startsWith("✗ failed: echo hi"));
+            var two = dev.ghbot.command.CmdOutputCapture.joinInline(java.util.List.of(
+                    new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN, "a", "A", java.util.List.of(), 0, null),
+                    new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.BLOCKED, "b", "", java.util.List.of(), 0, null, "msg")), false);
+            check("joinInline summary", two.contains("1 ran · 1 blocked · 0 failed"));
+        }
+        // (4) AUDIT P1-3: library path confinement
+        {
+            dev.ghbot.schematic.SchematicService svc2 = new dev.ghbot.schematic.SchematicService(dataDir, wlog);
+            check("paste confine rejects ../ traversal", svc2.resolveInLibrary("../../server.properties") == null);
+            check("paste confine rejects absolute-escape", svc2.resolveInLibrary("sub/../../escape") == null);
+            var okPath = svc2.resolveInLibrary("sub/ok.schem");
+            check("paste confine accepts nested inside library", okPath != null
+                    && okPath.startsWith(svc2.dir().toAbsolutePath().normalize()));
+            check("paste confine rejects blank", svc2.resolveInLibrary("  ") == null);
+        }
+        // (5) AUDIT P1-1: template bbox Y/Z transposition — fixtures must be ASYMMETRIC
+        //     (old suites only used Y/Z-symmetric fixtures, so the swap was invisible)
+        {
+            VoxelModel house22 = new VoxelModel();
+            house22.set(0, 0, 0, "stone_bricks");   // 9 wide × 6 high × 7 deep → bbox {0,0,0, 8,5,6}
+            house22.set(8, 5, 6, "stone_bricks");
+            house22.set(4, 2, 3, "oak_planks");
+            DesignSpec roof22 = EditCommands.templateEditSpec("add a roof", house22);
+            check("bbox fix: roof sits over maxY", roof22.isValid()
+                    && roof22.ops.get(0).params().get("y").equals("6"));
+            check("bbox fix: roof z-center from maxZ", roof22.ops.get(0).params().get("cz").equals("3")
+                    && roof22.ops.get(0).params().get("cx").equals("4"));
+            DesignSpec cols22 = EditCommands.templateEditSpec("add stone columns", house22);
+            boolean farZ6 = false, baseY0 = true, topY8 = false;
+            for (var colOp : cols22.ops) {
+                if (colOp.params().get("z").equals("6")) farZ6 = true;
+                if (!colOp.params().get("y0").equals("0")) baseY0 = false;
+                if (colOp.params().get("y1").equals("8")) topY8 = true;
+            }
+            check("bbox fix: column far corner z=maxZ", farZ6);
+            check("bbox fix: columns stand on minY", baseY0);
+            check("bbox fix: column top from real height", topY8);
+            DesignSpec door22 = EditCommands.templateEditSpec("add a door", house22);
+            check("bbox fix: door at foundation y", door22.isValid() && door22.ops.get(0).params().get("y").equals("0"));
+            DesignSpec tree22 = EditCommands.templateEditSpec("add a tree", house22);
+            check("bbox fix: tree z-center", tree22.isValid() && tree22.ops.get(0).params().get("z").equals("3"));
+        }
+        // (6) AUDIT P1-2: Litematica import with NEGATIVE Size (real-world litematics)
+        try {
+            byte[] lm = dev.ghbot.schematic.NbtWriter.writeRoot("", java.util.Map.of(
+                    "Version", 6,
+                    "Regions", java.util.Map.of("neg", java.util.Map.of(
+                            "Position", java.util.Map.of("x", 0, "y", 0, "z", 0),
+                            "Size", new int[]{-2, 2, -2},
+                            "BlockStatePalette", java.util.List.of(java.util.Map.of("Name", "minecraft:stone")),
+                            "BlockStates", new long[]{0L}))), true);
+            var lmodel = dev.ghbot.schematic.SchematicImporter.importFile(lm);
+            check("litematica negative size decodes all blocks", lmodel != null && lmodel.size() == 8
+                    && "stone".equals(lmodel.get(0, 0, 0)) && "stone".equals(lmodel.get(1, 1, 1)));
+        } catch (Exception lme) {
+            check("litematica negative size decodes all blocks", false);
+        }
+
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")
                 + "  (" + pass + " passed, " + fail + " failed)");
         System.exit(fail == 0 ? 0 : 1);

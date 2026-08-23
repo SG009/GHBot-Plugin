@@ -129,6 +129,28 @@ public final class WIBLogger {
     }
 
     /**
+     * v0.22.2 — write captured `cmd` output (Pillar 3) to logs/cmd/&lt;fileName&gt;.log.
+     * Same pattern as writeEyesSpec: full fidelity on disk, bounded inline text in
+     * chat/AI context. Returns the file name written ("logs/cmd/<safe>.log"), or
+     * null on failure.
+     */
+    public String writeCmdOutput(String fileName, String text) {
+        try {
+            java.nio.file.Path dir = chatLogFile.getParent().resolve("cmd");
+            Files.createDirectories(dir);
+            String safe = fileName == null || fileName.isBlank()
+                    ? "cmd-" + System.currentTimeMillis() : fileName.replaceAll("[^A-Za-z0-9._@-]", "_");
+            java.nio.file.Path f = dir.resolve(safe + ".log");
+            Files.writeString(f, text + System.lineSeparator(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            return "logs/cmd/" + safe + ".log";
+        } catch (IOException e) {
+            logger.warning("Could not write cmd output: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * v0.22.1 — write an eyes spec (scan/find/look JSON world data) to
      * logs/eyes/&lt;fileName&gt;.json. Full fidelity on disk; the chat/AI context
      * gets a bounded inline digest instead (see TerrainSpec.INLINE_MAX).

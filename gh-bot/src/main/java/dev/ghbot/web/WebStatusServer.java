@@ -159,8 +159,10 @@ public class WebStatusServer {
             }
         }
         if (name.isBlank()) { respond(ex, 400, "missing ?name=<file>"); return; }
-        byte[] body = ex.getRequestBody().readAllBytes();
-        if (body.length > 25 * 1024 * 1024) { respond(ex, 413, "file too large (max 25 MB)"); return; }
+        // v0.22.2 — bounded read (AUDIT P1-4): reject DURING the read at 25 MB + 1 byte
+        // instead of buffering an unbounded body into the heap first (phone, 0.0.0.0 bind).
+        byte[] body = readBounded(ex.getRequestBody(), 25L * 1024 * 1024);
+        if (body == null) { respond(ex, 413, "file too large (max 25 MB)"); return; }
 
         String lower = name.toLowerCase();
         String specText = null;
@@ -387,9 +389,17 @@ public class WebStatusServer {
         // commands (stop/reload/op/…) are blocked and mint a CONF-… token;
         // multiple commands supported via ';' (multi-step admin tasks).
         // v0.21.9 — dispatch MUST run on the main thread (Paper AsyncCatcher).
+        // v0.22.2 — Pillar 3: return the command's REAL output (web-bound inline).
         final String cmdLine = line;
-        String res = dev.ghbot.core.MainThread.call(() ->
-                commandLearning.dispatchGuardedMany(registry.defaultBot(), cmdLine));
+        String res;
+        if (commandLearning.capture() != null) {
+            java.util.List<dev.ghbot.command.CmdOutput> outs =
+                    commandLearning.capture().captureMany(registry.defaultBot(), cmdLine);
+            res = dev.ghbot.command.CmdOutputCapture.joinInline(outs, false);
+        } else {
+            res = dev.ghbot.core.MainThread.call(() ->
+                    commandLearning.dispatchGuardedMany(registry.defaultBot(), cmdLine));
+        }
         if (res.contains("⛔")) res += "\n(confirm blocked ones in chat: @GH000 confirm <CONF-token>)";
         respond(ex, 200, res);
     }
@@ -571,6 +581,20 @@ public class WebStatusServer {
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /** v0.22.2 — read at most maxBytes+1 from a stream; returns null when the body exceeds maxBytes. */
+    private static byte[] readBounded(java.io.InputStream in, long maxBytes) throws IOException {
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        long total = 0;
+        int n;
+        while ((n = in.read(chunk)) != -1) {
+            total += n;
+            if (total > maxBytes) return null;
+            buf.write(chunk, 0, n);
+        }
+        return buf.toByteArray();
     }
 
     private void respond(HttpExchange ex, int code, String body) throws IOException {

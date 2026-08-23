@@ -1,18 +1,55 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) & hardening (vanilla constraints, heightmap persistence, coordinate parsing, admin-only guard) · smoke **420/420 PASS** · jar `GHBot-0.22.1.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes · smoke **454/454 PASS** · jar `GHBot-0.22.2.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.22.1 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.22.2 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-08-20**. The rest of the
+> read this section first. It is the verified truth as of **2026-08-23**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
-> per-version changelog.
+> per-version changelog. Deep-research docs live in `gh-bot/docs/`:
+> `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
+> `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit behind this release).
+
+### What's new in v0.22.2 (Pillar 3: cmd output capture + Pillar-1/2 audit fixes)
+- **Pillar 3 — `cmd` now shows what the server actually said, everywhere.** All four dispatch
+  paths (AI tool/AutoTools, web `/cmd`, in-game `cmd`, `confirm`-ed commands) run through one
+  capture service: a **full-surface `CapturingSender`** (legacy String + **Adventure Component**
+  + bungee `BaseComponent`) dispatches on the main thread, while a **session-scoped JUL handler**
+  catches plugins that log instead of replying (bounded, self-filtered, deduped `console-log:`
+  lines). Root-cause fix: on Paper 1.21 every Component-based reply funnels into Adventure
+  terminal defaults that are **no-ops**, so the old String-only proxy silently discarded most
+  modern plugin output (LuckPerms, DeluxeMenus, vanilla feedback) — this unblocks Milestone 2's
+  LuckPerms runbook. **No new dependency** (log4j-core is dependency-blocked here — evidence in
+  the PLAN doc). Routing is eyes-style: bounded inline reply (web 4000c/40L, in-game 1500c/15L),
+  full output → `logs/cmd/<file>.log` when truncated. Guardrails unchanged (sensitive → CONF).
+- **AUDIT fixes (Pillar-1/2 go/no-go audit):**
+  - **P1-1 (HIGH): template-edit bbox Y/Z transposition fixed** — `edit` template ops
+    (roof/columns/door/window/tree — the **no-AI fallback**) anchored wrong whenever a
+    structure's height ≠ depth. Invisible to smoke because fixtures were Y/Z-symmetric;
+    now covered by asymmetric fixtures, **mutation-validated against the shipped 0.22.1 jar**
+    (old code: roof y=7/cz=2/col 9 → fixed: 6/3/8).
+  - **P1-2: Litematica import handles negative `Size`** (real-world .litematic regions) —
+    0-block decodes fixed. (The old backlog line "litematic paste unsupported" was stale:
+    import shipped in v0.21.46.)
+  - **P1-3: `paste`/`schem import` filenames confined to the library dir** (traversal rejected).
+  - **P1-4: `/upload` rejects oversized bodies DURING the read** (25 MB + 1 byte) instead of
+    buffering unbounded data into the phone's heap first.
+- **Tooling:** `tools/check-docs.sh` + CI step guard README smoke/version claims against the
+  real suite output (the 414-vs-420 drift class is now CI-fatal).
+- Smoke **454 checks** (was 420): +34 — all-surfaces capture, CmdOutput merge/inline/budgets,
+  JUL format, capture wiring + blocked contract + headless degradation, path confinement,
+  asymmetric bbox fixtures, negative-size Litematica, mutation validation.
+- **Open questions for the owner (not blockers):** undo drift-guard (Q1), terraform
+  smooth/raise/lower (Q2 — COMMANDS.md now tells the truth: only `flatten` is implemented),
+  web-console auth token (Q3). See `gh-bot/docs/AUDIT-pillar1-2-go-no-go.md`.
+
+
 
 ### What's new in v0.22.1 (Eyes-as-Data + hardening)
 - **Pillar 2 now "sees" as data.** `scan` / `find` / `look` emit a **TerrainSpec** — the same
@@ -199,7 +236,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **420 checks**):
+2. Recompile + run the smoke suite (currently **454 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -267,7 +304,7 @@ Hard constraints:
 
 ## Quick start (batch-test checklist)
 
-1. Drop `GHBot-0.22.1.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
+1. Drop `GHBot-0.22.2.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
 2. In-game: `@GH000 help` (lists ~27 commands) · `@GH000 scan here` · `@GH000 build a house` → walk the ghost → `approve`/`deny`/`redo`.
 3. **Browser review:** `server.web.enabled: true` → restart → `@GH000 build a tower` → `@GH000 view` → open URL → orbit → **Approve**.
 4. **Web chat:** open `http://<phone-ip>:8580/chat` (old page) or `/console` (agent console). **Secretary (no cloud):** click **Load secretary** — needs Chrome/Edge on Android. WebGPU requires a secure context, so open `http://127.0.0.1:8580/console` on the phone itself (or via an https tunnel) — plain `http://<LAN-ip>` won't expose WebGPU. Pick **2B** for a 6 GB phone, **4B** for max quality when the server is idle. **Workflow:** ask the secretary to draft a request → edit its `⟦draft⟧` card → **Send to technician** (chips still execute on the server directly). **Upload (v0.21.40):** the **📎** button next to the input — pick a `.json` build spec (staged directly, no paste) or an image (GH-bot sees it → generates the build).
@@ -295,8 +332,8 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (420 checks, all passing) · setup-build.sh (sandbox toolchain restore)
-releases/GHBot-0.22.1.jar            (current ship; old jars removed once confirmed)
+└── tools/SmokeTest.java              (454 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+releases/GHBot-0.22.2.jar            (current ship; old jars removed once confirmed)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```
 

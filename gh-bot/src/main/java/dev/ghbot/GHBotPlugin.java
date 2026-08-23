@@ -114,6 +114,7 @@ public class GHBotPlugin extends JavaPlugin {
         buildService.setAvatarService(avatarService);           // Phase 12 — avatar on direct build
         editService2 = new EditService(this, log, editService.undo(), cfg.editBlocksPerTick()); // Phase 10 — structure editing
         commandLearning = new CommandLearning(this, log);  // Phase 11 — command learning
+        commandLearning.setCapture(new dev.ghbot.command.CmdOutputCapture(this, log, commandLearning)); // v0.22.2 — Pillar 3 cmd output capture
         adminService = new AdminService(getDataFolder().getParentFile().toPath(), log, getDataFolder().toPath(), this); // Phase 11b — admin ops (owner enables reload health-check guard)
         dataset = new LearningDataset(getDataFolder().toPath(), log);      // Phase 8b — learning dataset
         downloader = new SchematicDownloader(log);
