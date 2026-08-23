@@ -19,7 +19,7 @@
   reproduces the same compile+smoke+jar using a PyPI JDK21 runtime + Eclipse ECJ + a public repo's
   committed paper-api dependency cache.
 - **Reference build spec fixture:** `gh-bot/tools/fixtures/ancient_dragon.json` (141 KB / 1,852 blocks).
-- **Releases:** `releases/GHBot-<ver>.jar` (current ship: v0.22.2; owner policy: the previous version is ALWAYS deleted at ship time — `releases/` holds only the newest).
+- **Releases:** `releases/GHBot-<ver>.jar` (current ship: v0.22.2; owner policy: the previous version is ALWAYS deleted at ship time — `releases/` holds only the newest). The GitHub **Releases page** mirrors this: previous release + tag deleted, newest `v<ver>` release created with the jar attached (`gh-bot/tools/github-release.sh`).
 - **Old project:** `uploads/` — the owner's previous mineflayer GH-series bot (kept for reference).
 
 ## The one core mechanic

@@ -243,7 +243,7 @@ Never assume tooling is present. Every turn that touches code:
    /tmp/jdk21/bin/java -Djava.io.tmpdir=/tmp/javatmp -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest
    ```
 3. Keep the suite green **before** shipping; add a smoke check for every fix.
-4. Ship: `cp build/libs/GHBot-<ver>.jar /home/user/releases/GHBot-<ver>.jar` **and delete the previous version's jar in the same commit** (owner policy — `releases/` always holds ONLY the newest jar; done since v0.22.2).
+4. Ship: `cp build/libs/GHBot-<ver>.jar /home/user/releases/GHBot-<ver>.jar` **and delete the previous version's jar in the same commit** (owner policy — `releases/` always holds ONLY the newest jar; done since v0.22.2). Then mirror the GitHub **Releases page** (same policy: delete previous release + tag, create `v<ver>` with the jar attached): `GITHUB_TOKEN=<pat> bash gh-bot/tools/github-release.sh <ver> "<title>" <notes-file> [sha]`.
 5. Never bump versions backwards; bump `build.gradle.kts` `version` each release.
 
 Hard constraints:
@@ -333,7 +333,9 @@ gh-bot/
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
 └── tools/SmokeTest.java              (454 checks, all passing) · setup-build.sh (sandbox toolchain restore)
-releases/GHBot-0.22.2.jar            (current ship; previous versions deleted at ship time — always)
+                                       · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
+releases/GHBot-0.22.2.jar            (current ship; previous versions deleted at ship time — always;
+                                       GitHub Releases page mirrors: only the newest release + tag exists)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```
 
