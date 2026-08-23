@@ -26,7 +26,10 @@ TITLE="${2:?missing release title}"
 NOTES="${3:?missing notes file}"
 SHA="${4:-main}"
 TAG="v$VER"
-JAR="$(cd "$(dirname "$0")/../.." && pwd)/releases/GHBot-$VER.jar"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+JAR="$ROOT/releases/GHBot-$VER.jar"
+# the API rejects short/ambiguous target_commitish values — resolve to the full sha
+FULL_SHA=$(git -C "$ROOT" rev-parse "$SHA" 2>/dev/null || echo "$SHA")
 
 : "${GITHUB_TOKEN:?set GITHUB_TOKEN env var — never hardcode the token}"
 [ -f "$NOTES" ] || { echo "notes file not found: $NOTES" >&2; exit 1; }
@@ -45,14 +48,20 @@ for r in json.load(sys.stdin):
   curl -sS -o /dev/null -w "  DELETE tag $rtag: %{http_code}\n" -X DELETE "${auth[@]}" "$API/git/refs/tags/$rtag" || true
 done
 
-echo "== 2/3 create release $TAG @ $SHA =="
+echo "== 2/3 create release $TAG @ $FULL_SHA =="
 RESP=$(python3 -c '
 import json,sys
 print(json.dumps({"tag_name": sys.argv[1], "target_commitish": sys.argv[2],
                   "name": sys.argv[3], "body": sys.argv[4],
                   "draft": False, "prerelease": False}))
-' "$TAG" "$SHA" "$TITLE" "$(cat "$NOTES")" | curl -sS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- "$API/releases")
-REL_ID=$(printf '%s' "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+' "$TAG" "$FULL_SHA" "$TITLE" "$(cat "$NOTES")" | curl -sS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- "$API/releases")
+REL_ID=$(printf '%s' "$RESP" | python3 -c '
+import json,sys
+d = json.load(sys.stdin)
+if "id" not in d:
+    sys.exit("API error creating release: " + json.dumps(d)[:500])
+print(d["id"])
+')
 echo "  release id: $REL_ID"
 
 echo "== 3/3 attach $(basename "$JAR") =="
