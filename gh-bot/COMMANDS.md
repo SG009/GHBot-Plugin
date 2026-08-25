@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.22.2 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.22.3 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -48,7 +48,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `refresh` | Re-learn the server's command catalog |
 | `confirm <CONF-token>` | Confirm a blocked systemic command |
 | `admin <read\|set\|backup\|restore\|rollback\|reload\|menu> …` | Safe config editing (backup+validate+rollback) |
-| `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token). **v0.22.2:** the reply includes the command's **real output** — sender-feed (legacy/Adventure/bungee all captured) + bounded `console-log:` lines for plugins that log instead of replying; long output truncates inline → full text in `logs/cmd/<file>.log` |
+| `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token). **v0.22.2:** the reply includes the command's **real output** — sender-feed (legacy/Adventure/bungee all captured) + bounded `console-log:` lines for plugins that log instead of replying; long output truncates inline → full text in `logs/cmd/<file>.log`. **v0.22.3:** dispatch goes through Paper's `FeedbackForwardingSender` (the only sender type 1.21's dispatcher accepts userdata for) — commands actually **run** on Paper 1.21 and failures carry the reason (`✗ failed: stip — unknown to the server …`). Confirm runs the command (no more CONF loop). Note: `/gh <botcommand>` dispatched through web `/cmd` executes + audits but its reply text races the HTTP response (async-by-design) — use chat or `/GH000 …` in-game for those |
 
 ## Pillar 4 — Interact
 | Surface | How |
@@ -76,6 +76,10 @@ to revive.
   all-surfaces `CapturingSender` (legacy/Adventure/bungee) + session JUL handler for
   log-not-reply plugins, bounded inline + `logs/cmd/*.log`. Plan + dependency evidence:
   `docs/PLAN-pillar3-cmd-output-capture.md`.
+- **✅ Live-batch regression sweep SHIPPED (v0.22.3):** cmd dispatch fixed on Paper 1.21
+  (FeedbackForwarding route), confirm actually executes, admin server-file reads fixed,
+  `scan` sees below y=0. Root causes + probe evidence + live validation matrix:
+  `docs/FIX-0.22.3-cmd-dispatch.md`.
 - **Next backlog:** render eyes-specs in the 3D viewer · ambient console-tail feed (needs
   the log4j-core dependency question resolved) · vision quality auto-verify loop ·
   `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1) · web-console

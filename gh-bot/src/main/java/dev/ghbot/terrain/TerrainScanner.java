@@ -139,6 +139,11 @@ public final class TerrainScanner {
         }
     }
 
+    /** v0.22.3 — scan column floor: the WORLD's min height, never clamped to 0
+     *  (1.18+ worlds go down to -64; smoke-pinned so the y<0 blindness can't return).
+     *  Public for SmokeTest. */
+    public static int columnMinY(int worldMinHeight) { return worldMinHeight; }
+
     /** Scan a cubic region around center (±radius on X/Z, full column in Y up to world height). */
     public static TerrainSummary scan(Location center, int radius) {
         World w = center.getWorld();
@@ -150,7 +155,9 @@ public final class TerrainScanner {
         int minZ = cz - radius, maxZ = cz + radius;
         s.minX = minX; s.maxX = maxX;
         s.minZ = minZ; s.maxZ = maxZ;
-        s.minY = Math.max(w.getMinHeight(), 0);
+        // v0.22.3 — was Math.max(minHeight, 0): a pre-1.18 assumption that made scans
+        // blind to everything below y=0 (owner's hub ground is at y=-1 → scan found 0 blocks).
+        s.minY = columnMinY(w.getMinHeight());
         s.maxY = w.getMaxHeight() - 1;
 
         // v0.21.9 — thread-safe: grab chunk snapshots on the main thread, then
@@ -276,7 +283,7 @@ public final class TerrainScanner {
         spec.name = "scan@r" + radius + "@" + cx + "," + cy + "," + cz;
         int minX = cx - radius, maxX = cx + radius;
         int minZ = cz - radius, maxZ = cz + radius;
-        int minY = Math.max(w.getMinHeight(), 0);
+        int minY = columnMinY(w.getMinHeight());  // v0.22.3 — include below-zero layers (1.18+)
         int maxY = w.getMaxHeight() - 1;
         int depth = Math.max(0, Math.min(64, depthBelow));
         java.util.Map<Long, ChunkSnapshot> snaps = captureSnapshots(w, minX, minZ, maxX, maxZ);

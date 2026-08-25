@@ -1,13 +1,13 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes · smoke **454/454 PASS** · jar `GHBot-0.22.2.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) · smoke **471/471 PASS** · jar `GHBot-0.22.3.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.22.2 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.22.3 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-08-23**. The rest of the
@@ -15,6 +15,26 @@
 > per-version changelog. Deep-research docs live in `gh-bot/docs/`:
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit behind this release).
+
+### What's new in v0.22.3 (live-batch regression sweep — full story: `docs/FIX-0.22.3-cmd-dispatch.md`)
+- **`cmd` ACTUALLY RUNS on Paper 1.21 now (was: every command "✗ failed").** Root cause
+  (paper-source + probe-proven): `CraftServer.dispatchCommand` converts every sender via
+  `VanillaCommandWrapper.getListener`, which **throws** for plain custom `CommandSender`s —
+  and v0.22.2's one-try shape let that throw also skip the console fallback. Fix: dispatch
+  through Paper's own `io.papermc.paper.commands.FeedbackForwardingSender` (all feedback —
+  legacy/Adventure/vanilla — into our consumer; reflection-only, zero new deps; console
+  fallback kept for Spigot/old Paper). Failures now carry a reason note instead of silence.
+- **`confirm` actually executes** (was: re-BLOCKED + fresh CONF token forever). The CONF-…
+  token now bypasses the guard — it IS the confirmation. Live: `stop` → confirm halts the server.
+- **`admin read server.properties` works** (was: "Path escapes server dir." whenever the world
+  container resolved relative/`File(".")` — exactly the owner's Termux setup).
+- **`scan` sees below y=0** (was: pre-1.18 clamp to minY=0 — 0 blocks on worlds whose ground
+  sits under y=0). Live flat-world: 6724/645504 non-air at minY=-64.
+- **Dispatch audit centralized** in `CmdOutputCapture.capture()` — every path (AI/web/in-game/
+  confirm) audited exactly once, truthfully (BLOCKED is no longer logged as "ok").
+- Smoke **471 checks** (+17) · validated against a sandbox-local Paper 1.21.11-132 (= owner's build).
+- Known quirk: `/gh <botcommand>` via web `/cmd` executes + audits but its reply text races
+  the HTTP response (registry subs are async-by-design); chat/in-game surfaces unaffected.
 
 ### What's new in v0.22.2 (Pillar 3: cmd output capture + Pillar-1/2 audit fixes)
 - **Pillar 3 — `cmd` now shows what the server actually said, everywhere.** All four dispatch
@@ -236,7 +256,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **454 checks**):
+2. Recompile + run the smoke suite (currently **471 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -332,9 +352,9 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (454 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (471 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
-releases/GHBot-0.22.2.jar            (current ship; previous versions deleted at ship time — always;
+releases/GHBot-0.22.3.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```

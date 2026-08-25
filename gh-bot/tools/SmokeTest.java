@@ -1842,10 +1842,68 @@ public class SmokeTest {
             check("capture headless degrades to FAILED (no throw)",
                     headlessOut.status == dev.ghbot.command.CmdOutput.Status.FAILED
                     && headlessOut.fullText().startsWith("✗ failed: echo hi"));
+            check("FAILED note preserved end-to-end (v0.22.3 note-drop fix)",
+                    headlessOut.note != null && headlessOut.fullText().contains(" — " + headlessOut.note));
             var two = dev.ghbot.command.CmdOutputCapture.joinInline(java.util.List.of(
                     new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.RAN, "a", "A", java.util.List.of(), 0, null),
                     new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.BLOCKED, "b", "", java.util.List.of(), 0, null, "msg")), false);
             check("joinInline summary", two.contains("1 ran · 1 blocked · 0 failed"));
+        }
+        // (3b) v0.22.3 — live-batch regressions (owner batch of 2026-08-25:
+        //      every cmd "✗ failed", confirm loop, admin read "Path escapes server dir.",
+        //      scan blind below y=0). Live Proof-of-Fix: local Paper 1.21.11 repro.
+        {
+            // FeedbackForwardingSender route: headless the paper-server class is absent →
+            // gracefully "unavailable", never throws (live route validated on real Paper)
+            check("FF route unavailable headless (no throw)",
+                    !dev.ghbot.command.FeedbackForwarder.available());
+            check("FF create returns null headless",
+                    dev.ghbot.command.FeedbackForwarder.create(c -> {}) == null);
+
+            // CONFIRM flow: the CONF-… token IS the confirmation → guard bypassed,
+            // never re-minted (the v0.22.2 infinite CONF loop regression)
+            dev.ghbot.command.CommandLearning cl3 = new dev.ghbot.command.CommandLearning(null, wlog);
+            cl3.setCapture(new dev.ghbot.command.CmdOutputCapture(null, wlog, cl3));
+            var blocked3 = cl3.capture().capture(def, "stop");
+            check("guard still mints CONF token", blocked3.status == dev.ghbot.command.CmdOutput.Status.BLOCKED
+                    && cl3.pendingCount() == 1);
+            String token3 = blocked3.fullText().replaceAll("(?s).*?(CONF-[0-9]+-[0-9]+).*", "$1");
+            var conf3 = cl3.confirm(token3);
+            check("confirm never re-blocks / re-mints",
+                    !conf3.message().contains("⛔") && !conf3.message().contains("CONF-") && cl3.pendingCount() == 0);
+            check("confirm reports outcome (ran-or-failed, not blocked)",
+                    conf3.message().startsWith("confirmed + ran:") || conf3.message().startsWith("confirmed but command failed:"));
+            check("confirm token is one-shot", cl3.confirm(token3).status().equals("unknown"));
+
+            // audit single-point (v0.22.3): every dispatch audited exactly once from capture()
+            // (v0.22.2 only audited the AI path — and logged "ok" for BLOCKED)
+            String cmdsPre = java.nio.file.Files.readString(dataDir.resolve("logs").resolve("commands.log"));
+            long before4 = cmdsPre.lines().filter(l -> l.contains("\"echo z\"")).count();
+            cl3.dispatchCaptured(def, "echo z");
+            String cmds4 = java.nio.file.Files.readString(dataDir.resolve("logs").resolve("commands.log"));
+            long after4 = cmds4.lines().filter(l -> l.contains("\"echo z\"")).count();
+            check("capture audits exactly once per dispatch", after4 - before4 == 1);
+            check("audit outcome truthful (headless dispatch FAIL)", cmds4.contains("cmd → \"echo z\" → FAIL"));
+            check("blocked audit says BLOCKED, not ok", cmds4.contains("cmd → \"stop\" → BLOCKED (systemic"));
+
+            // FAILED carries the reason
+            var failOut = new dev.ghbot.command.CmdOutput(dev.ghbot.command.CmdOutput.Status.FAILED,
+                    "stip", "", java.util.List.of(), 0, null, "unknown to the server (x)");
+            check("FAILED renders reason note", failOut.fullText().startsWith("✗ failed: stip — unknown to the server"));
+            check("rootCause unwraps nested causes", dev.ghbot.command.CmdOutputCapture.rootCause(
+                    new RuntimeException("outer", new IllegalStateException("deep cause why"))).contains("deep cause why"));
+            check("rootCause bounds long messages", dev.ghbot.command.CmdOutputCapture.rootCause(
+                    new RuntimeException("x".repeat(500))).length() <= 160);
+
+            // admin server-root: relative/empty detection results must anchor to absolute
+            java.nio.file.Path anchored = dev.ghbot.admin.AdminService.toAbsoluteRoot(java.nio.file.Path.of(""));
+            check("admin root anchor absolutizes empty path", anchored.isAbsolute() && !anchored.toString().isEmpty());
+            check("admin root anchor normalizes dots", dev.ghbot.admin.AdminService.toAbsoluteRoot(
+                    java.nio.file.Path.of("a/./b/../c")).endsWith("c"));
+
+            // scan column includes below-zero layers (1.18+ worlds)
+            check("scan column honors world min height", dev.ghbot.terrain.TerrainScanner.columnMinY(-64) == -64);
+            check("scan column unchanged for 0-min worlds", dev.ghbot.terrain.TerrainScanner.columnMinY(0) == 0);
         }
         // (4) AUDIT P1-3: library path confinement
         {

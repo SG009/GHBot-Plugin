@@ -158,11 +158,14 @@ public class CommandLearning {
             return new DispatchResult("expired", token, "Confirmation token expired — re-run the command.");
         }
         if (capture != null) {
-            dev.ghbot.command.CmdOutput out = capture.capture(p.bot, p.line);
+            // v0.22.3 — bypass the guard: the CONF-… token IS the explicit confirmation.
+            // (v0.22.2 re-applied the guard here → minted a fresh token + BLOCKED again
+            // on every confirm; systemic commands could never actually run.)
+            // No audit here — CmdOutputCapture.capture() audits every dispatch (v0.22.3).
+            dev.ghbot.command.CmdOutput out = capture.capture(p.bot, p.line, true);
             boolean ok = out.status == dev.ghbot.command.CmdOutput.Status.RAN;
             String msg = (ok ? "confirmed + ran: " : "confirmed but command failed: ") + p.line
                     + "\n" + out.inlineGame();
-            audit(p.bot, "cmd", p.line, ok);
             return new DispatchResult(ok ? "ran" : "failed", token, msg);
         }
         boolean ok = dispatchAsConsole(p.bot, p.line);
@@ -205,8 +208,8 @@ public class CommandLearning {
      *  wired (early startup). */
     public String dispatchCaptured(GHBot bot, String line) {
         if (capture != null) {
+            // v0.22.3 — audit happens inside capture() (single point, all four paths).
             dev.ghbot.command.CmdOutput out = capture.capture(bot, line);
-            audit(bot, "cmd", line, out.status != dev.ghbot.command.CmdOutput.Status.FAILED);
             return out.inlineWeb();
         }
         // legacy fallback (capture service not yet constructed)
@@ -272,6 +275,10 @@ public class CommandLearning {
     }
 
     private void audit(GHBot bot, String kind, String what, boolean ok) {
-        log.commandLog("[" + bot.id() + "] " + kind + " → \"" + what + "\" → " + (ok ? "ok" : "FAIL"));
+        audit(bot, kind, what, ok ? "ok" : "FAIL");
+    }
+
+    private void audit(GHBot bot, String kind, String what, String outcome) {
+        log.commandLog("[" + bot.id() + "] " + kind + " → \"" + what + "\" → " + outcome);
     }
 }

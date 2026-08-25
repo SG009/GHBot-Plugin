@@ -88,7 +88,11 @@ public class AdminService {
 
     public AdminService(Path pluginsDir, WIBLogger log, Path dataFolder, JavaPlugin owner) {
         this.pluginsDir = pluginsDir.toAbsolutePath();
-        this.serverDir = detectServerRoot(this.pluginsDir);
+        // v0.22.3 — detection may return a RELATIVE or EMPTY path (e.g. Bukkit's world
+        // container is File(".") → toPath() == ""), and a relative serverDir made every
+        // whitelisted server-file check fail with "Path escapes server dir." (Path.startsWith
+        // is element-wise: absolute never startsWith relative). Anchor + normalize at the root.
+        this.serverDir = toAbsoluteRoot(detectServerRoot(this.pluginsDir));
         this.log = log;
         this.owner = owner;
         this.backupsDir = dataFolder.resolve("admin-backups");
@@ -125,6 +129,13 @@ public class AdminService {
             if (Files.exists(cwd)) return cwd.getParent();
         } catch (Throwable ignored) {}
         return pluginsDir.getParent() == null ? pluginsDir : pluginsDir.getParent();
+    }
+
+    /** v0.22.3 — anchor + normalize a (possibly relative/empty) detected root.
+     *  Public for SmokeTest. */
+    public static Path toAbsoluteRoot(Path p) {
+        if (p == null) return Path.of("").toAbsolutePath().normalize();
+        return p.toAbsolutePath().normalize();
     }
 
     /**

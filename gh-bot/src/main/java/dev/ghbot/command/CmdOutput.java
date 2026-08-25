@@ -57,6 +57,9 @@ public final class CmdOutput {
             case FAILED -> sb.append("✗ failed: ").append(line);
             default -> sb.append("✓ ran: ").append(line);
         }
+        // v0.22.3 — FAILED carries the reason (dispatch threw / unknown command) so the
+        // failure is diagnosable from the reply instead of a bare ✗.
+        if (status == Status.FAILED && note != null && !note.isBlank()) sb.append(" — ").append(note);
         if (status == Status.RAN && senderFeed.isEmpty() && logLines.isEmpty()) {
             sb.append("\n(no output)");
             return sb.toString();
