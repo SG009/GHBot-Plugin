@@ -104,6 +104,41 @@ public class SmokeTest {
                 && cfg.bots().get(0).provider().equals("auto")
                 && cfg.bots().get(0).mode().equals("review"));
 
+        // 1b) artifact integrity (v0.22.4) — the jar's plugin.yml stamp must equal
+        // build.gradle.kts `version`. v0.22.3 shipped new code with a STALE 0.22.2
+        // stamp (Gradle re-jarred over cached processResources output after the bump),
+        // so `version GHBot` reported 0.22.2 on the owner's live server. This pin
+        // fails the suite the moment stamp and build version ever drift again.
+        {
+            String stamp = null;
+            try (InputStream in = SmokeTest.class.getResourceAsStream("/plugin.yml")) {
+                if (in != null) {
+                    String yml = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                    for (String ln : yml.split("\n")) {
+                        if (ln.startsWith("version:")) {
+                            stamp = ln.substring("version:".length()).trim()
+                                    .replace("'", "").replace("\"", "");
+                            break;
+                        }
+                    }
+                }
+            }
+            check("plugin.yml stamp resolves on classpath (no raw token)",
+                    stamp != null && !stamp.contains("${") && !stamp.isEmpty());
+            Path ktsPath = Path.of("build.gradle.kts");
+            if (!Files.exists(ktsPath)) ktsPath = Path.of("gh-bot/build.gradle.kts");
+            String ktsVer = "";
+            if (Files.exists(ktsPath)) {
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("^version = \"([^\"]+)\"", java.util.regex.Pattern.MULTILINE)
+                        .matcher(Files.readString(ktsPath));
+                if (m.find()) ktsVer = m.group(1);
+            }
+            final String st = stamp, kv = ktsVer;
+            check("plugin.yml stamp == build.gradle.kts version (" + st + " vs " + kv + ")",
+                    !kv.isEmpty() && kv.equals(st));
+        }
+
         // 2) registry
         BotRegistry registry = new BotRegistry(cfg);
         GHBot def = registry.defaultBot();

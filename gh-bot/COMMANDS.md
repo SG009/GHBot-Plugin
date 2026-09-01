@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.22.3 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.22.4 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -80,6 +80,11 @@ to revive.
   (FeedbackForwarding route), confirm actually executes, admin server-file reads fixed,
   `scan` sees below y=0. Root causes + probe evidence + live validation matrix:
   `docs/FIX-0.22.3-cmd-dispatch.md`.
+- **✅ Version-stamp fix SHIPPED (v0.22.4):** the 0.22.3 jar was stamped `0.22.2` (Gradle
+  `processResources` expand map isn't an up-to-date input → stale resources after the
+  bump), so `version GHBot` / `plugins` / the load banner reported the old version.
+  Fixed via `inputs.property` + smoke + `check-docs.sh` guards:
+  `docs/FIX-0.22.4-version-stamp.md`.
 - **Next backlog:** render eyes-specs in the 3D viewer · ambient console-tail feed (needs
   the log4j-core dependency question resolved) · vision quality auto-verify loop ·
   `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1) · web-console

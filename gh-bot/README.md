@@ -1,20 +1,36 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) · smoke **471/471 PASS** · jar `GHBot-0.22.3.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) · smoke **473/473 PASS** · jar `GHBot-0.22.4.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.22.3 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.22.4 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-08-23**. The rest of the
+> read this section first. It is the verified truth as of **2026-09-01**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog. Deep-research docs live in `gh-bot/docs/`:
+> `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
-> `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit behind this release).
+> `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.22.4 (jar version-stamp fix — full story: `docs/FIX-0.22.4-version-stamp.md`)
+- **The 0.22.3 jar was stamped `0.22.2`** — every v0.22.3 fix ran live, but
+  `version GHBot` (and the plugin list/load banner) reported 0.22.2, because Gradle's
+  `processResources` `expand(...)` map is NOT an up-to-date input: the bump happened
+  without `clean`, so the jar re-assembled new code over cached old resources.
+  Reproduced in-lab on Gradle 8.10.2 (jar named 0.22.5-TEST carrying a 0.22.4 stamp).
+- **Fix:** `processResources { inputs.property("version", project.version); … }` —
+  the stamp now re-renders on every version bump, clean build or not (proven in-lab).
+- **Guards so it can't slip again:** smoke pins 472–473 (classpath `plugin.yml` stamp
+  must equal `build.gradle.kts` version — mutation-validated to FAIL on drift) and a
+  `check-docs.sh` jar-stamp check at ship time.
+- Live-validated on sandbox-local Paper 1.21.11-132 (= owner build): load banner
+  `GHBot v0.22.4`, `version GHBot` → `GHBot version 0.22.4`, `plugins` intact.
+- Smoke **473 checks** (+2). Owner action: swap jar, restart — no config changes.
 
 ### What's new in v0.22.3 (live-batch regression sweep — full story: `docs/FIX-0.22.3-cmd-dispatch.md`)
 - **`cmd` ACTUALLY RUNS on Paper 1.21 now (was: every command "✗ failed").** Root cause
@@ -256,7 +272,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **471 checks**):
+2. Recompile + run the smoke suite (currently **473 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -269,7 +285,7 @@ Never assume tooling is present. Every turn that touches code:
 Hard constraints:
 - Workspace snapshot **excludes any path segment named `build`** → the package is `dev.ghbot.builder` (never create `dev.ghbot.build`); compiled jars live in `build/libs/` which is excluded, so always copy to `/home/user/releases/`.
 - **Gson is blocked** on the mirror — JSON is hand-rolled (`ai/JsonUtil.java`, `builder/JsonBuildSpec.java`).
-- A full Paper server **cannot boot in the sandbox** (Paper libs are stubbed) → verification = headless smoke + the owner's live logs/screenshots. Never claim a phase works without a smoke test.
+- A full Paper server **CAN boot in the sandbox** (2 GB RAM, since v0.22.3): small heap flags (`-Xmx640M -XX:+UseSerialGC -XX:MaxMetaspaceSize=192M -XX:MaxDirectMemorySize=64M -Xss512k`), flat world, view/sim-distance 2, paper jar via fill.papermc.io **v3** (downloads API v2 is sunset). Even so, verification = headless smoke **first**, then a sandbox-local live run when the fix is runtime-visible, then the owner's live logs. Never claim a phase works without a smoke and/or live check.
 - Server must bind **0.0.0.0** (phone web console), and browser-facing pages must not call `localhost` — use relative URLs (web console and viewer do this already).
 
 ### Backlog / known issues (next-agent TODO)
@@ -352,9 +368,9 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (471 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (473 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
-releases/GHBot-0.22.3.jar            (current ship; previous versions deleted at ship time — always;
+releases/GHBot-0.22.4.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```

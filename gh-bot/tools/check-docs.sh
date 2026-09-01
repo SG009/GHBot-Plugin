@@ -41,4 +41,14 @@ if [ $# -ge 1 ]; then
   echo "[DOCS] smoke-claim matches actual suite result: $1"
 fi
 
+# v0.22.4 — the shipped jar's plugin.yml stamp must equal the build version
+# (v0.22.3 shipped a stale '0.22.2' stamp: Gradle re-jarred new code over cached
+# processResources output. `version GHBot` reported 0.22.2 on the owner's server).
+JAR="releases/GHBot-$VER.jar"
+if [ -f "$JAR" ]; then
+  STAMP=$(unzip -p "$JAR" plugin.yml 2>/dev/null | grep -m1 '^version:' | sed -E "s/^version:[[:space:]]*'?([^']*)'.*/\1/")
+  [ "$STAMP" = "$VER" ] || fail "$JAR plugin.yml says '$STAMP' (expected '$VER') — stale stamp, rebuild"
+  echo "[DOCS] releases jar stamp: $STAMP (matches)"
+fi
+
 echo "[DOCS] OK — docs consistent (v$VER)."
