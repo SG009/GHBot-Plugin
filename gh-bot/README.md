@@ -1,21 +1,41 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) · smoke **473/473 PASS** · jar `GHBot-0.22.4.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) · smoke **493/493 PASS** · jar `GHBot-0.23.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.22.4 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.23.0 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-09-01**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
-> per-version changelog. Deep-research docs live in `gh-bot/docs/`:
+> per-version changelog. The next-batch plan (v0.23→v0.27) lives in
+> `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.23.0 (Web-console login token — Q3 · batch plan: `docs/PLAN-next-batch-v0.23-v0.27.md`)
+- **:8580 is admin-only now (the owner's design: CONF-style token shown ONLY in the server
+  console).** At startup GHBot mints `WEB-########` (SecureRandom) and prints it once in the
+  server console / latest.log; every web route (`/`, `/chat`, `/console`, `/cmd`, `/upload`,
+  `/api/*`, `/view…`) redirects unauthenticated browsers to `/login` (401 JSON for API-ish
+  paths). Optional fixed token: `server.web.token:` in config.yml.
+- **Login → HttpOnly session cookie** (128-bit id, 12 h sliding expiry, in-memory — a
+  restart logs everyone out). **Brute-force guard:** 5 wrong tries/min per IP → 10 min
+  lockout; fails/lockouts/auth-blocks audit-log to the GHBot web log (never the token).
+- **`/gh webtoken`** (op-only, as always): regenerates the token, logs all web sessions
+  out, prints the new token to the op AND to the server console (the console-log-rescue
+  line — otherwise a web-only owner could lock themselves out; found in live testing).
+- **Live-validated on sandbox-local Paper 1.21.11-132 (= owner build):** full curl
+  matrix — 302/401 without cookie; 5-bad→429-locked (10 min); correct-token-while-locked
+  rejected; boot mint differs across restarts; cookie passes `/cmd plugins` + `/view`;
+  regen kills the old cookie + old token; regen token recoverable from latest.log.
+- Smoke **493 checks** (+20: 15 auth-rule logic pins incl. per-IP lockout/TTL/constant-time
+  verify + 5 real-HTTP wire pins against a headless HttpServer).
 
 ### What's new in v0.22.4 (jar version-stamp fix — full story: `docs/FIX-0.22.4-version-stamp.md`)
 - **The 0.22.3 jar was stamped `0.22.2`** — every v0.22.3 fix ran live, but
@@ -272,7 +292,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **473 checks**):
+2. Recompile + run the smoke suite (currently **493 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -368,9 +388,9 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (473 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (493 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
-releases/GHBot-0.22.4.jar            (current ship; previous versions deleted at ship time — always;
+releases/GHBot-0.23.0.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)
 ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
 ```

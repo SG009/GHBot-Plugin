@@ -63,6 +63,7 @@ public class GHBotPlugin extends JavaPlugin {
     private BlockEditService editService;
     private LocationStore locations;
     private WebStatusServer webServer;
+    private dev.ghbot.web.WebAuthService webAuth;   // v0.23.0 — Q3 web-console login token (null when web disabled)
     private ProviderRegistry providers;
     private ChatService chatService;
     private BuildService buildService;
@@ -131,14 +132,20 @@ public class GHBotPlugin extends JavaPlugin {
         registerCrewCommands();
         registerToggles();
         bridge.setGhostService(ghostService);
+        bridge.setWebAuth(() -> webAuth);   // v0.23.0 — /gh webtoken reaches the live auth service
 
         // Phase 4+9 — web status page + preview viewer (P13/P14)
         if (cfg.webEnabled()) {
             try {
                 webServer = new WebStatusServer(cfg.webPort(), this::webStats, this::webBots, log);
+                webAuth = new dev.ghbot.web.WebAuthService(cfg.webToken(), log, System::currentTimeMillis);  // v0.23.0 — Q3
+                webServer.attachAuth(webAuth);
                 webServer.attachPreviews(previews, registry, ghostService, schematics);
                 webServer.attachChat(chatService, registry, this::toolExecutor, commandLearning, this::webStats);
                 webServer.start();
+                log.info("Web console login token: " + webAuth.token() + (webAuth.isFixed()
+                        ? " (fixed via config server.web.token)"
+                        : " — shown only here in the server log; ops can regenerate with /gh webtoken"));
             } catch (IOException e) {
                 log.error("Could not start web status server", e);
             }

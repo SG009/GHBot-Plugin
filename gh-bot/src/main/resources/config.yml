@@ -27,6 +27,9 @@ server:
     enabled: false              # web status page + 3D preview               (Phase 3+)
     port: 8580
     bind: 0.0.0.0               # binds to LAN IP so you can open it from another device
+    token: ""                   # v0.23.0 — web LOGIN token. Empty = a fresh WEB-######## is
+                                # minted each boot and printed ONCE in the server console
+                                # (ops: GH000 webtoken regen). Set a value to fix it.
 
 utils:
   # WIB (Asia/Jakarta) timestamps in all console logs — like your old bot

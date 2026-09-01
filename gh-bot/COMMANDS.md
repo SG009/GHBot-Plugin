@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.22.4 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.23.0 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -47,6 +47,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `provider list\|set <name>` | AI backend per bot |
 | `refresh` | Re-learn the server's command catalog |
 | `confirm <CONF-token>` | Confirm a blocked systemic command |
+| `webtoken` | Regenerate/show the web-console login token (`WEB-…`) — op-only; new token prints to the op AND the server console; kills all web sessions (v0.23.0) |
 | `admin <read\|set\|backup\|restore\|rollback\|reload\|menu> …` | Safe config editing (backup+validate+rollback) |
 | `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token). **v0.22.2:** the reply includes the command's **real output** — sender-feed (legacy/Adventure/bungee all captured) + bounded `console-log:` lines for plugins that log instead of replying; long output truncates inline → full text in `logs/cmd/<file>.log`. **v0.22.3:** dispatch goes through Paper's `FeedbackForwardingSender` (the only sender type 1.21's dispatcher accepts userdata for) — commands actually **run** on Paper 1.21 and failures carry the reason (`✗ failed: stip — unknown to the server …`). Confirm runs the command (no more CONF loop). Note: `/gh <botcommand>` dispatched through web `/cmd` executes + audits but its reply text races the HTTP response (async-by-design) — use chat or `/GH000 …` in-game for those |
 
@@ -85,7 +86,16 @@ to revive.
   bump), so `version GHBot` / `plugins` / the load banner reported the old version.
   Fixed via `inputs.property` + smoke + `check-docs.sh` guards:
   `docs/FIX-0.22.4-version-stamp.md`.
-- **Next backlog:** render eyes-specs in the 3D viewer · ambient console-tail feed (needs
-  the log4j-core dependency question resolved) · vision quality auto-verify loop ·
-  `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1) · web-console
-  auth token (Q3).
+- **✅ Web-console login token SHIPPED (v0.23.0 — Q3):** :8580 now requires login. At
+  startup GHBot mints `WEB-########` (SecureRandom) and prints it ONCE in the server
+  console / latest.log (admin-only eyes — the owner's design); every route redirects
+  unauthenticated browsers to `/login` (401 JSON for API paths). Login → HttpOnly
+  session cookie (12 h sliding, in-memory). Brute-force: 5 wrong/min per IP → 10 min
+  lockout (audit-logged, token never logged). **`webtoken`** bot command: op-only
+  regen — logs all sessions out and prints the new token to the op AND the server
+  console (the console-log-rescue line, so a web-only owner can't lock themselves
+  out). Optional fixed token: `server.web.token:` in config.yml. Every boot mints a
+  FRESH token (old ones die). Batch plan: `docs/PLAN-next-batch-v0.23-v0.27.md`.
+- **Next backlog:** Phase B log auditor (WARN/ERROR digest + update radar) ·
+  Phase C eyes+good-result build pack · Phase D terraform brushes ·
+  `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1).

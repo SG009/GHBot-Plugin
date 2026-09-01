@@ -1,6 +1,7 @@
 package dev.ghbot.web;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import dev.ghbot.bot.BotRegistry;
 import dev.ghbot.bot.GHBot;
@@ -40,6 +41,7 @@ public class WebStatusServer {
     private java.util.function.Supplier<dev.ghbot.agent.ToolExecutor> toolProvider;
     private dev.ghbot.command.CommandLearning commandLearning;
     private java.util.function.Supplier<java.util.Map<String, String>> jsonStats;
+    private WebAuthService auth;   // v0.23.0 — Q3 login-token gate (null = legacy open)
 
     /** v0.21.42 — review-activity feed (Approve/Deny/Export from the 3D viewer) shown in the chat console. */
     private final java.util.List<String> reviewFeed = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -63,8 +65,157 @@ public class WebStatusServer {
         this.bots = bots;
         this.log = log;
         this.server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
-        server.createContext("/", this::handleRoot);
+        server.createContext("/", guard(this::handleRoot));
         server.setExecutor(null); // default
+    }
+
+    /** v0.23.0 — Q3: attach the login-token gate. From now on every route requires a
+     *  valid session cookie; only /login + /api/login stay public. The guard reads
+     *  {@code auth} at REQUEST time (contexts register before attachAuth is called). */
+    public void attachAuth(WebAuthService auth) {
+        this.auth = auth;
+        server.createContext("/login", this::handleLogin);
+        server.createContext("/api/login", this::handleApiLogin);
+    }
+
+    public WebAuthService auth() { return auth; }
+
+    /** v0.23.0 — the gate itself: no valid session cookie → 302 to /login for pages,
+     *  401 JSON for API-ish paths (/api/*, /cmd, /upload). Blocks are audit-logged
+     *  with ip but never with any presented credential. */
+    private HttpHandler guard(HttpHandler h) {
+        return ex -> {
+            WebAuthService a = this.auth;          // evaluated per request (late attach)
+            if (a == null) { h.handle(ex); return; }
+            String cookie = ex.getRequestHeaders().getFirst("Cookie");
+            if (a.sessionForCookie(cookie) != null) { h.handle(ex); return; }
+            String path = ex.getRequestURI().getPath();
+            log.consoleLog("WEB auth-block " + path + " ip=" + ipOf(ex));
+            if (isApiPath(path)) {
+                respond(ex, 401, "{\"error\":\"auth required — log in at /login "
+                        + "(token is printed in the server console / latest.log)\"}",
+                        "application/json; charset=utf-8");
+            } else {
+                ex.getResponseHeaders().set("Location", "/login");
+                ex.sendResponseHeaders(302, -1);
+                ex.close();
+            }
+        };
+    }
+
+    private static boolean isApiPath(String path) {
+        return path.startsWith("/api/") || path.equals("/cmd") || path.equals("/upload");
+    }
+
+    private static String ipOf(HttpExchange ex) {
+        try {
+            return ex.getRemoteAddress() == null || ex.getRemoteAddress().getAddress() == null
+                    ? "?" : ex.getRemoteAddress().getAddress().getHostAddress();
+        } catch (Exception e) {
+            return "?";
+        }
+    }
+
+    /* ── /login — v0.23.0: GET shows the token form; POST (form token=… or raw body)
+     *  validates it, sets the session cookie, and redirects to /. Public by design. ── */
+    private void handleLogin(HttpExchange ex) throws IOException {
+        WebAuthService a = this.auth;
+        if (a == null) { respond(ex, 503, "auth not configured"); return; }
+        if (ex.getRequestMethod().equalsIgnoreCase("GET")) {
+            respond(ex, 200, loginPage(null), "text/html; charset=utf-8");
+            return;
+        }
+        byte[] raw = readBounded(ex.getRequestBody(), 4096);
+        String body = raw == null ? "" : new String(raw, StandardCharsets.UTF_8).trim();
+        String presented = body.startsWith("token=")
+                ? java.net.URLDecoder.decode(body.substring("token=".length()), StandardCharsets.UTF_8)
+                : body;
+        loginAttempt(ex, a, presented, false);
+    }
+
+    /* ── /api/login — v0.23.0: same check for curl/script clients:
+     *  POST /api/login?token=WEB-…  →  {"ok":true} + Set-Cookie, or 401/429 JSON. ── */
+    private void handleApiLogin(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equalsIgnoreCase("POST")) { respond(ex, 405, "POST only"); return; }
+        WebAuthService a = this.auth;
+        if (a == null) { respond(ex, 503, "{\"error\":\"auth not configured\"}", "application/json; charset=utf-8"); return; }
+        String presented = "";
+        String query = ex.getRequestURI().getQuery();
+        if (query != null) {
+            for (String kv : query.split("&")) {
+                String[] p = kv.split("=", 2);
+                if (p.length == 2 && p[0].equals("token")) {
+                    presented = java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8);
+                }
+            }
+        }
+        if (presented.isBlank()) {
+            byte[] raw = readBounded(ex.getRequestBody(), 4096);
+            presented = raw == null ? "" : new String(raw, StandardCharsets.UTF_8).trim();
+        }
+        loginAttempt(ex, a, presented, true);
+    }
+
+    private void loginAttempt(HttpExchange ex, WebAuthService a, String presented, boolean json) throws IOException {
+        WebAuthService.LoginResult r = a.login(ipOf(ex), presented);
+        if (r.session != null) {
+            ex.getResponseHeaders().set("Set-Cookie", a.cookieHeaderFor(r.session));
+            if (json) {
+                respond(ex, 200, "{\"ok\":true}", "application/json; charset=utf-8");
+            } else {
+                ex.getResponseHeaders().set("Location", "/");
+                ex.sendResponseHeaders(302, -1);
+                ex.close();
+            }
+            return;
+        }
+        if (r.lockedForMs > 0) {
+            long secs = (r.lockedForMs + 999) / 1000;
+            if (json) {
+                respond(ex, 429, "{\"ok\":false,\"locked\":" + secs + "}", "application/json; charset=utf-8");
+            } else {
+                respond(ex, 429, loginPage("Too many wrong tries — locked. Retry in " + secs + "s."),
+                        "text/html; charset=utf-8");
+            }
+            return;
+        }
+        if (json) {
+            respond(ex, 401, "{\"ok\":false,\"fails\":" + r.failsSoFar + "}", "application/json; charset=utf-8");
+        } else {
+            respond(ex, 401, loginPage("Wrong token (" + r.failsSoFar + " fail(s) — ip locks after 5 within a minute)."),
+                    "text/html; charset=utf-8");
+        }
+    }
+
+    /** v0.23.0 — tiny dark login page (same style family as the status page). */
+    private static String loginPage(String error) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">")
+          .append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+          .append("<title>gh-bot · login</title><style>")
+          .append("body{background:#0a0a0a;color:#f5f2e9;font-family:ui-monospace,Consolas,monospace;")
+          .append("display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}")
+          .append(".card{background:#15150f;border:1px solid #ffffff14;border-radius:10px;padding:26px;max-width:420px;width:90%}")
+          .append("h1{font-size:18px;letter-spacing:.06em;margin-top:0}")
+          .append("input{width:100%;box-sizing:border-box;background:#0a0a0a;color:#f5f2e9;border:1px solid #ffffff22;")
+          .append("border-radius:8px;padding:10px;font:inherit;margin:10px 0}")
+          .append("button{width:100%;background:#85a63e;color:#0a0a0a;border:0;border-radius:8px;padding:10px;")
+          .append("font:inherit;font-weight:700;cursor:pointer}")
+          .append(".err{color:#f5b64d;font-size:13px;margin:8px 0 0}")
+          .append(".dim{color:#8d8a7e;font-size:12px;line-height:1.5}")
+          .append("</style></head><body><div class=\"card\">")
+          .append("<h1>gh-bot · <span style=\"color:#85a63e\">login</span></h1>")
+          .append("<p class=\"dim\">This console is admin-only. Paste the login token ")
+          .append("(<b>WEB-########</b>) — it is printed once in the server console / ")
+          .append("latest.log at startup. Ops can regenerate it in-game with ")
+          .append("<b>GH000 webtoken</b>.</p>")
+          .append("<form method=\"POST\" action=\"/login\">")
+          .append("<input name=\"token\" autocomplete=\"off\" autocapitalize=\"none\" ")
+          .append("placeholder=\"WEB-…\" required>")
+          .append("<button type=\"submit\">log in</button></form>");
+        if (error != null) sb.append("<p class=\"err\">").append(esc(error)).append("</p>");
+        sb.append("</div></body></html>");
+        return sb.toString();
     }
 
     /** Attach the /chat + /console + /api routes (Phase 9b v2 — web console). */
@@ -77,14 +228,14 @@ public class WebStatusServer {
         this.toolProvider = tools;
         this.commandLearning = learning;
         this.jsonStats = stats;
-        server.createContext("/chat", this::handleChat);
-        server.createContext("/console", this::handleConsole);
-        server.createContext("/api/status", this::handleApiStatus);
-        server.createContext("/api/tools", this::handleApiTools);
-        server.createContext("/cmd", this::handleCmd);
-        server.createContext("/upload", this::handleUpload);   // v0.21.40 — upload JSON build spec or image
-        server.createContext("/api/events", this::handleApiEvents);   // v0.21.42 — review-activity feed
-        server.createContext("/api/cancel", this::handleApiCancel);   // v0.21.44 — Stop button
+        server.createContext("/chat", guard(this::handleChat));
+        server.createContext("/console", guard(this::handleConsole));
+        server.createContext("/api/status", guard(this::handleApiStatus));
+        server.createContext("/api/tools", guard(this::handleApiTools));
+        server.createContext("/cmd", guard(this::handleCmd));
+        server.createContext("/upload", guard(this::handleUpload));   // v0.21.40 — upload JSON build spec or image
+        server.createContext("/api/events", guard(this::handleApiEvents));   // v0.21.42 — review-activity feed
+        server.createContext("/api/cancel", guard(this::handleApiCancel));   // v0.21.44 — Stop button
     }
 
     /* ── /api/cancel?session=<key> — v0.21.44: Stop button. Aborts the in-flight AI
@@ -228,7 +379,7 @@ public class WebStatusServer {
         this.registry = registry;
         this.ghosts = ghosts;
         this.schematics = schematics;
-        server.createContext("/view", this::handleView);
+        server.createContext("/view", guard(this::handleView));
     }
 
     public int port() {

@@ -27,6 +27,7 @@ public class PluginConfig {
     private boolean webEnabled = false;
     private int webPort = 8580;
     private String webBind = "0.0.0.0";
+    private String webToken = "";   // v0.23.0 — Q3 login token; empty = mint WEB-######## each boot
     private final AiConfig ai = new AiConfig();
     private double buildTpsPause = 16.0;
     private boolean autoSaveApproved = false;
@@ -70,6 +71,7 @@ public class PluginConfig {
         cfg.webEnabled = c.getBoolean("server.web.enabled", false);
         cfg.webPort = c.getInt("server.web.port", 8580);
         cfg.webBind = c.getString("server.web.bind", "0.0.0.0");
+        cfg.webToken = c.getString("server.web.token", "");
         cfg.ai.load(c.getConfigurationSection("ai.providers"));
         cfg.buildTpsPause = c.getDouble("build.tps-pause-threshold", 16.0);
         cfg.buildPauseTicks = c.getInt("build.pause-ticks", 10);
@@ -113,6 +115,7 @@ public class PluginConfig {
     public boolean webEnabled() { return webEnabled; }
     public int webPort() { return webPort; }
     public String webBind() { return webBind; }
+    public String webToken() { return webToken; }
     public AiConfig ai() { return ai; }
     public double buildTpsPause() { return Math.max(10, buildTpsPause); }
     public int buildPauseTicks() { return Math.max(2, buildPauseTicks); }

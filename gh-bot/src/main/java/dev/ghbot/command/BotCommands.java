@@ -64,6 +64,7 @@ public final class BotCommands {
         // ── manage server (Pillar 3) ──
         cmd("admin", "Safe config editing (backup+validate+rollback)", "admin <read|set|backup|restore|rollback|reload|menu> …");
         cmd("cmd", "Run server commands as console (multi via ';', systemic need confirm)", "cmd <command> [; command; …]");
+        cmd("webtoken", "Regenerate/show the web-console login token (v0.23.0)", "webtoken");
     }
 
     /**

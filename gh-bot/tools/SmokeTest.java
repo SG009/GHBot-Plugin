@@ -1950,6 +1950,74 @@ public class SmokeTest {
                     && okPath.startsWith(svc2.dir().toAbsolutePath().normalize()));
             check("paste confine rejects blank", svc2.resolveInLibrary("  ") == null);
         }
+        // (4b) v0.23.0 — Q3 web-console login token: pure-logic rules
+        {
+            java.util.concurrent.atomic.AtomicLong t = new java.util.concurrent.atomic.AtomicLong(1_000_000L);
+            dev.ghbot.web.WebAuthService wa = new dev.ghbot.web.WebAuthService("", null, t::get);
+            check("webtoken mint format WEB-%08d", wa.token().matches("WEB-\\d{8}"));
+            String tokA = wa.token();
+            String tokB = wa.regen();
+            check("webtoken regen differs", tokB != null && !tokB.equals(tokA));
+            check("webtoken constant-time verify semantics",
+                    wa.verifyToken(tokB) && !wa.verifyToken("WEB-00000000") && !wa.verifyToken(null));
+            var loginRes = wa.login("10.0.0.1", tokB);
+            check("web login succeeds with correct token", loginRes.session != null && loginRes.lockedForMs <= 0);
+            String ch = wa.cookieHeaderFor(loginRes.session);
+            check("session cookie round-trip", wa.sessionForCookie(ch) != null
+                    && wa.sessionForCookie(ch).id.equals(loginRes.session.id));
+            check("foreign cookie rejected", wa.sessionForCookie("ghbot_session=deadbeefdeadbeef") == null);
+            check("default config token empty (mint mode)", cfg.webToken() != null && cfg.webToken().isEmpty());
+            FileConfiguration fixedYml = YamlConfiguration.loadConfiguration(new java.io.StringReader(
+                    "server:\n  web:\n    enabled: true\n    token: \"WEB-FIXED-1\"\n"));
+            PluginConfig fixedCfg = PluginConfig.loadFrom(fixedYml);
+            check("fixed web token parses from config", "WEB-FIXED-1".equals(fixedCfg.webToken()));
+            dev.ghbot.web.WebAuthService wa2 = new dev.ghbot.web.WebAuthService("", null, t::get);
+            for (int i = 0; i < 4; i++) wa2.login("10.0.0.9", "bad");
+            var r5 = wa2.login("10.0.0.9", "bad");
+            check("5 fails in window lock the ip", r5.lockedForMs > 0 && r5.session == null);
+            var rLocked = wa2.login("10.0.0.9", wa2.token());
+            check("locked ip blocked even with correct token", rLocked.session == null && rLocked.lockedForMs > 0);
+            var rOther = wa2.login("10.0.0.2", wa2.token());
+            check("lockout is per-ip", rOther.session != null);
+            t.addAndGet(13L * 60 * 60 * 1000);   // 13 h > 12 h TTL
+            check("session expires after TTL", wa.sessionForCookie(ch) == null);
+            var okSess = wa2.login("10.0.0.3", wa2.token());
+            wa2.regen();
+            check("regen kills prior sessions", wa2.sessionForCookie(wa2.cookieHeaderFor(okSess.session)) == null);
+            check("old token rejected after regen", !wa.verifyToken(tokA) && wa.verifyToken(tokB));
+            dev.ghbot.web.WebAuthService waf = new dev.ghbot.web.WebAuthService("hunter2", null, t::get);
+            check("fixed config token honored + regen refused",
+                    waf.isFixed() && waf.verifyToken("hunter2") && waf.regen() == null);
+        }
+        // (4c) v0.23.0 — Q3 gate wiring over the REAL wire (headless HttpServer)
+        {
+            dev.ghbot.web.WebStatusServer ws = new dev.ghbot.web.WebStatusServer(
+                    0, java.util.Map::of, java.util.List::of, wlog);
+            dev.ghbot.web.WebAuthService wa3 = new dev.ghbot.web.WebAuthService("", null, System::currentTimeMillis);
+            ws.attachAuth(wa3);
+            ws.start();
+            String base = "http://127.0.0.1:" + ws.port();
+            java.net.HttpURLConnection noC = (java.net.HttpURLConnection) java.net.URI.create(base + "/").toURL().openConnection();
+            noC.setInstanceFollowRedirects(false);
+            check("gate redirects browsers with no cookie", noC.getResponseCode() == 302
+                    && "/login".equals(noC.getHeaderField("Location")));
+            java.net.HttpURLConnection api = (java.net.HttpURLConnection) java.net.URI.create(base + "/api/status").toURL().openConnection();
+            api.setInstanceFollowRedirects(false);
+            check("api path without cookie gets 401 JSON", api.getResponseCode() == 401);
+            java.net.HttpURLConnection lg = (java.net.HttpURLConnection) java.net.URI.create(base + "/login").toURL().openConnection();
+            String loginHtml = new String(lg.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            check("login page is the only public route", lg.getResponseCode() == 200 && loginHtml.contains("WEB-"));
+            java.net.HttpURLConnection li = (java.net.HttpURLConnection) java.net.URI.create(base + "/api/login?token=" + wa3.token()).toURL().openConnection();
+            li.setRequestMethod("POST");
+            int liCode = li.getResponseCode();
+            String setC = li.getHeaderField("Set-Cookie");
+            String sid = dev.ghbot.web.WebAuthService.sessionIdFromCookie(setC);
+            check("api login issues a session cookie", liCode == 200 && sid != null);
+            java.net.HttpURLConnection ok = (java.net.HttpURLConnection) java.net.URI.create(base + "/").toURL().openConnection();
+            ok.setRequestProperty("Cookie", dev.ghbot.web.WebAuthService.COOKIE_NAME + "=" + sid);
+            check("valid session cookie passes the gate", ok.getResponseCode() == 200);
+            ws.stop();
+        }
         // (5) AUDIT P1-1: template bbox Y/Z transposition — fixtures must be ASYMMETRIC
         //     (old suites only used Y/Z-symmetric fixtures, so the swap was invisible)
         {
