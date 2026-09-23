@@ -96,11 +96,30 @@ public class WebStatusServer {
                         + "(token is printed in the server console / latest.log)\"}",
                         "application/json; charset=utf-8");
             } else {
-                ex.getResponseHeaders().set("Location", "/login");
+                // v0.23.1 — remember where they were going (/console, /view/<id>, …)
+                String dest = path + (ex.getRequestURI().getQuery() != null
+                        ? "?" + ex.getRequestURI().getQuery() : "");
+                ex.getResponseHeaders().set("Location", "/login?next="
+                        + java.net.URLEncoder.encode(dest, StandardCharsets.UTF_8));
                 ex.sendResponseHeaders(302, -1);
                 ex.close();
             }
         };
+    }
+
+    /** v0.23.1 — redirect target after login: only same-site absolute paths survive
+     *  (blocks open-redirect tricks like //evil.com or scheme injection). Default
+     *  landing is the chat console — the owner's main tool, not the status page. */
+    public static String sanitizeNext(String next) {
+        String fallback = "/console";
+        if (next == null) return fallback;
+        String n = next.trim();
+        if (!n.startsWith("/") || n.startsWith("//")) return fallback;
+        for (int i = 0; i < n.length(); i++) {
+            char c = n.charAt(i);
+            if (c < 0x21 || c == 0x7F || c == '\\' || c == '"' || c == '\'') return fallback;
+        }
+        return n;
     }
 
     private static boolean isApiPath(String path) {
@@ -117,20 +136,30 @@ public class WebStatusServer {
     }
 
     /* ── /login — v0.23.0: GET shows the token form; POST (form token=… or raw body)
-     *  validates it, sets the session cookie, and redirects to /. Public by design. ── */
+     *  validates it, sets the session cookie, and redirects to <next> (or /console).
+     *  Public by design. ── */
     private void handleLogin(HttpExchange ex) throws IOException {
         WebAuthService a = this.auth;
         if (a == null) { respond(ex, 503, "auth not configured"); return; }
         if (ex.getRequestMethod().equalsIgnoreCase("GET")) {
-            respond(ex, 200, loginPage(null), "text/html; charset=utf-8");
+            String next = queryParam(ex, "next");
+            respond(ex, 200, loginPage(null, next), "text/html; charset=utf-8");
             return;
         }
         byte[] raw = readBounded(ex.getRequestBody(), 4096);
         String body = raw == null ? "" : new String(raw, StandardCharsets.UTF_8).trim();
-        String presented = body.startsWith("token=")
-                ? java.net.URLDecoder.decode(body.substring("token=".length()), StandardCharsets.UTF_8)
-                : body;
-        loginAttempt(ex, a, presented, false);
+        String presented = body, next = "";
+        if (body.contains("=") || body.contains("&")) {   // form-urlencoded (token=…&next=…)
+            presented = "";
+            for (String kv : body.split("&")) {
+                String[] p = kv.split("=", 2);
+                if (p.length != 2) continue;
+                String v = java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8);
+                if (p[0].equals("token")) presented = v;
+                else if (p[0].equals("next")) next = v;
+            }
+        }
+        loginAttempt(ex, a, presented, false, sanitizeNext(next));
     }
 
     /* ── /api/login — v0.23.0: same check for curl/script clients:
@@ -153,17 +182,18 @@ public class WebStatusServer {
             byte[] raw = readBounded(ex.getRequestBody(), 4096);
             presented = raw == null ? "" : new String(raw, StandardCharsets.UTF_8).trim();
         }
-        loginAttempt(ex, a, presented, true);
+        loginAttempt(ex, a, presented, true, "/console");
     }
 
-    private void loginAttempt(HttpExchange ex, WebAuthService a, String presented, boolean json) throws IOException {
+    private void loginAttempt(HttpExchange ex, WebAuthService a, String presented,
+                              boolean json, String next) throws IOException {
         WebAuthService.LoginResult r = a.login(ipOf(ex), presented);
         if (r.session != null) {
             ex.getResponseHeaders().set("Set-Cookie", a.cookieHeaderFor(r.session));
             if (json) {
                 respond(ex, 200, "{\"ok\":true}", "application/json; charset=utf-8");
             } else {
-                ex.getResponseHeaders().set("Location", "/");
+                ex.getResponseHeaders().set("Location", next);
                 ex.sendResponseHeaders(302, -1);
                 ex.close();
             }
@@ -174,7 +204,7 @@ public class WebStatusServer {
             if (json) {
                 respond(ex, 429, "{\"ok\":false,\"locked\":" + secs + "}", "application/json; charset=utf-8");
             } else {
-                respond(ex, 429, loginPage("Too many wrong tries — locked. Retry in " + secs + "s."),
+                respond(ex, 429, loginPage("Too many wrong tries — locked. Retry in " + secs + "s.", next),
                         "text/html; charset=utf-8");
             }
             return;
@@ -182,13 +212,26 @@ public class WebStatusServer {
         if (json) {
             respond(ex, 401, "{\"ok\":false,\"fails\":" + r.failsSoFar + "}", "application/json; charset=utf-8");
         } else {
-            respond(ex, 401, loginPage("Wrong token (" + r.failsSoFar + " fail(s) — ip locks after 5 within a minute)."),
+            respond(ex, 401, loginPage("Wrong token (" + r.failsSoFar + " fail(s) — ip locks after 5 within a minute).", next),
                     "text/html; charset=utf-8");
         }
     }
 
+    /** Small helper: first value of a query parameter (decoded), "" when absent. */
+    private static String queryParam(HttpExchange ex, String key) {
+        String query = ex.getRequestURI().getQuery();
+        if (query == null) return "";
+        for (String kv : query.split("&")) {
+            String[] p = kv.split("=", 2);
+            if (p.length == 2 && p[0].equals(key)) {
+                return java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8);
+            }
+        }
+        return "";
+    }
+
     /** v0.23.0 — tiny dark login page (same style family as the status page). */
-    private static String loginPage(String error) {
+    private static String loginPage(String error, String next) {
         StringBuilder sb = new StringBuilder();
         sb.append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">")
           .append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
@@ -210,6 +253,7 @@ public class WebStatusServer {
           .append("latest.log at startup. Ops can regenerate it in-game with ")
           .append("<b>GH000 webtoken</b>.</p>")
           .append("<form method=\"POST\" action=\"/login\">")
+          .append("<input type=\"hidden\" name=\"next\" value=\"").append(esc(sanitizeNext(next))).append("\">")
           .append("<input name=\"token\" autocomplete=\"off\" autocapitalize=\"none\" ")
           .append("placeholder=\"WEB-…\" required>")
           .append("<button type=\"submit\">log in</button></form>");
@@ -442,6 +486,7 @@ public class WebStatusServer {
 
         sb.append("<p class=\"dim\" style=\"margin-top:26px;font-size:11px\">gh-bot · "
                   + "<a href=\"/\" style=\"color:#85a63e\">status</a> · "
+                  + "<a href=\"/console\" style=\"color:#85a63e\">console</a> · "
                   + "<a href=\"/view\" style=\"color:#85a63e\">previews</a></p>");
         sb.append("</body></html>");
         return sb.toString();

@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.23.0 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.23.1 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -96,6 +96,8 @@ to revive.
   console (the console-log-rescue line, so a web-only owner can't lock themselves
   out). Optional fixed token: `server.web.token:` in config.yml. Every boot mints a
   FRESH token (old ones die). Batch plan: `docs/PLAN-next-batch-v0.23-v0.27.md`.
+  **v0.23.1:** login returns you to the page you asked for (`?next=`), defaulting to
+  `/console`; the status page now links the console; open-redirect safe.
 - **Next backlog:** Phase B log auditor (WARN/ERROR digest + update radar) ·
   Phase C eyes+good-result build pack · Phase D terraform brushes ·
   `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1).

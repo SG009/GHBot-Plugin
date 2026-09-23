@@ -1999,8 +1999,9 @@ public class SmokeTest {
             String base = "http://127.0.0.1:" + ws.port();
             java.net.HttpURLConnection noC = (java.net.HttpURLConnection) java.net.URI.create(base + "/").toURL().openConnection();
             noC.setInstanceFollowRedirects(false);
-            check("gate redirects browsers with no cookie", noC.getResponseCode() == 302
-                    && "/login".equals(noC.getHeaderField("Location")));
+            String noCLoc = noC.getHeaderField("Location");
+            check("gate redirects browsers with no cookie (carries next)", noC.getResponseCode() == 302
+                    && noCLoc != null && noCLoc.startsWith("/login?next="));
             java.net.HttpURLConnection api = (java.net.HttpURLConnection) java.net.URI.create(base + "/api/status").toURL().openConnection();
             api.setInstanceFollowRedirects(false);
             check("api path without cookie gets 401 JSON", api.getResponseCode() == 401);
@@ -2015,7 +2016,41 @@ public class SmokeTest {
             check("api login issues a session cookie", liCode == 200 && sid != null);
             java.net.HttpURLConnection ok = (java.net.HttpURLConnection) java.net.URI.create(base + "/").toURL().openConnection();
             ok.setRequestProperty("Cookie", dev.ghbot.web.WebAuthService.COOKIE_NAME + "=" + sid);
-            check("valid session cookie passes the gate", ok.getResponseCode() == 200);
+            int okCode = ok.getResponseCode();
+            String rootHtml = new String(ok.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            check("valid session cookie passes the gate", okCode == 200);
+            check("status page links the console (v0.23.1)", rootHtml.contains("href=\"/console\""));
+
+            // v0.23.1 — post-login return-to-destination + console default landing
+            check("sanitizeNext keeps same-site paths", dev.ghbot.web.WebStatusServer.sanitizeNext("/console").equals("/console")
+                    && dev.ghbot.web.WebStatusServer.sanitizeNext("/view/abc?x=1").equals("/view/abc?x=1"));
+            check("sanitizeNext defaults blank/null to /console", dev.ghbot.web.WebStatusServer.sanitizeNext("").equals("/console")
+                    && dev.ghbot.web.WebStatusServer.sanitizeNext(null).equals("/console"));
+            check("sanitizeNext blocks open redirects", dev.ghbot.web.WebStatusServer.sanitizeNext("//evil.com/x").equals("/console")
+                    && dev.ghbot.web.WebStatusServer.sanitizeNext("https://evil.com/").equals("/console")
+                    && dev.ghbot.web.WebStatusServer.sanitizeNext("/a\\b").equals("/console")
+                    && dev.ghbot.web.WebStatusServer.sanitizeNext("/x\"q").equals("/console"));
+            java.net.HttpURLConnection cons = (java.net.HttpURLConnection) java.net.URI.create(base + "/console").toURL().openConnection();
+            cons.setInstanceFollowRedirects(false);
+            String consLoc = cons.getHeaderField("Location");
+            check("gate bounces /console carrying next (302)", cons.getResponseCode() == 302
+                    && consLoc != null && consLoc.startsWith("/login?next=")
+                    && java.net.URLDecoder.decode(consLoc.substring("/login?next=".length()),
+                    java.nio.charset.StandardCharsets.UTF_8).equals("/console"));
+            java.net.HttpURLConnection form = (java.net.HttpURLConnection) java.net.URI.create(base + "/login").toURL().openConnection();
+            form.setRequestMethod("POST");
+            form.setDoOutput(true);
+            form.getOutputStream().write(("token=" + wa3.token() + "&next=%2Fconsole").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            form.setInstanceFollowRedirects(false);
+            check("login returns to the requested page", form.getResponseCode() == 302
+                    && "/console".equals(form.getHeaderField("Location")));
+            java.net.HttpURLConnection formDflt = (java.net.HttpURLConnection) java.net.URI.create(base + "/login").toURL().openConnection();
+            formDflt.setRequestMethod("POST");
+            formDflt.setDoOutput(true);
+            formDflt.getOutputStream().write(("token=" + wa3.token()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            formDflt.setInstanceFollowRedirects(false);
+            check("login without next lands on /console", formDflt.getResponseCode() == 302
+                    && "/console".equals(formDflt.getHeaderField("Location")));
             ws.stop();
         }
         // (5) AUDIT P1-1: template bbox Y/Z transposition — fixtures must be ASYMMETRIC
