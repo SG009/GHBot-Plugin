@@ -30,6 +30,10 @@ server:
     token: ""                   # v0.23.0 — web LOGIN token. Empty = a fresh WEB-######## is
                                 # minted each boot and printed ONCE in the server console
                                 # (ops: GH000 webtoken regen). Set a value to fix it.
+    local-bypass: false         # v0.27.0 — true = requests from THIS device (127.0.0.1/::1)
+                                # skip the login page entirely (owner browses on the host
+                                # phone itself). LAN/remote devices still need the token.
+                                # Restart (or /gh reload) to apply.
 
 utils:
   # WIB (Asia/Jakarta) timestamps in all console logs — like your old bot

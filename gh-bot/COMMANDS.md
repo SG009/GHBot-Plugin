@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.26.0 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.27.0 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -34,7 +34,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `set <block> at <x y z\|here\|me>` · `set <where> to <block>` | Precision placement (v0.25.0 look-then-set loop; feeds `undo`) |
 | `replace <from> <to> [radius]` | Swap block types in a region |
 | `terraform [on\|off\|flatten <radius> [block]\|status]` | Surface flatten (only `flatten` is implemented — `smooth`/`raise`/`lower` are backlog, v0.22.2 doc truth) |
-| `undo [minutes]` | Undo last edit / revert recent edits. **Type-fidelity only:** blockstates (stairs facing, sign text) and container contents are NOT restored |
+| `undo [minutes\|confirm [minutes]]` | Undo last edit / revert recent edits. **v0.27.0 drift-guard:** refuses (non-destructively) when the edited area changed since the edit — `undo confirm` forces (audit-logged). **Type-fidelity only:** blockstates (stairs facing, sign text) and container contents are NOT restored |
 
 **v0.22.1 — eyes-as-data:** `scan`/`find`/`look` now also emit a **TerrainSpec**
 (`{name,palette,blocks[]}` in absolute coords + origin) to bot memory (`eyes.spec`),

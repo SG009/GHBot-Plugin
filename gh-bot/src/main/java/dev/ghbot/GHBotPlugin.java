@@ -133,6 +133,17 @@ public class GHBotPlugin extends JavaPlugin {
             registerBot(bot);   // also loads session + restores markers (Phase 12)
         }
         auditService.start();   // v0.24.0 — attach log listener + schedule update radar (after plugins load)
+        // v0.27.0 — Phase E small batch: catalog auto-refresh on empty. Boot never refreshed
+        // (only `refresh`//gh reload` did) — an empty catalog served nothing to the
+        // learning/add surfaces until someone noticed. Check 2 s after enable on main.
+        org.bukkit.Bukkit.getScheduler().runTaskLater(this, () -> {
+            try {
+                if (commandLearning.size() == 0) {
+                    int n = commandLearning.refresh();
+                    log.info("[GHBot] command catalog auto-refreshed on empty: " + n + " commands");
+                }
+            } catch (Throwable ignored) {}
+        }, 40L);
 
         // Phase 14 — multi-bot crew commands (deploy/undeploy/workers)
         registerCrewCommands();
@@ -144,6 +155,7 @@ public class GHBotPlugin extends JavaPlugin {
         if (cfg.webEnabled()) {
             try {
                 webServer = new WebStatusServer(cfg.webPort(), this::webStats, this::webBots, log);
+                webServer.setLocalBypass(cfg.webLocalBypass());          // v0.27.0 — loopback bypass (opt-in)
                 webAuth = new dev.ghbot.web.WebAuthService(cfg.webToken(), log, System::currentTimeMillis);  // v0.23.0 — Q3
                 webServer.attachAuth(webAuth);
                 webServer.attachPreviews(previews, registry, ghostService, schematics);

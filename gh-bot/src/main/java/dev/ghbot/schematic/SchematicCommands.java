@@ -98,7 +98,24 @@ public final class SchematicCommands {
                 return;
             }
             if (!Files.exists(f)) {
-                sender.sendMessage("§c[" + b.id() + "] No such file in the library. Try " + b.id() + " library");
+                // v0.27.0 — paste-ambiguity: never guess-paste — ASK with real candidates
+                java.util.List<String> cand = schematics.candidates(file);
+                if (cand.size() == 1) {
+                    sender.sendMessage("§e[" + b.id() + "] No exact file \"" + file + "\" — did you mean §f"
+                            + cand.get(0) + "§e? Run: " + b.id() + " paste " + cand.get(0));
+                } else if (!cand.isEmpty()) {
+                    StringBuilder cs = new StringBuilder();
+                    int shown = 0;
+                    for (String cn : cand) {
+                        if (shown >= 6) { cs.append("§7, … +").append(cand.size() - 6).append(" more"); break; }
+                        cs.append(shown > 0 ? "§7, §f" : "§f").append(cn);
+                        shown++;
+                    }
+                    sender.sendMessage("§e[" + b.id() + "] \"" + file + "\" is ambiguous: did you mean " + cs
+                            + "§e? Be exact: " + b.id() + " paste <file>");
+                } else {
+                    sender.sendMessage("§c[" + b.id() + "] No such file in the library. Try " + b.id() + " library");
+                }
                 return;
             }
             try {

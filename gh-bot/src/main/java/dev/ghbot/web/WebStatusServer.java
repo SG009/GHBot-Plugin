@@ -72,6 +72,21 @@ public class WebStatusServer {
     /** v0.23.0 — Q3: attach the login-token gate. From now on every route requires a
      *  valid session cookie; only /login + /api/login stay public. The guard reads
      *  {@code auth} at REQUEST time (contexts register before attachAuth is called). */
+    /** v0.27.0 — opt-in loopback login bypass (owner browses from the server's own device). */
+    private volatile boolean localBypass;
+    public void setLocalBypass(boolean on) { this.localBypass = on; }
+    public boolean localBypass() { return localBypass; }
+
+    /** Headless seam: hosts that mean "the server's own device". 127.0.0.0/8 (dot-checked),
+     *  ::1 and localhost — private LAN (192.168.x, 10.x) NEVER bypasses. */
+    public static boolean isLoopbackHost(String host) {
+        if (host == null) return false;
+        String h = host.trim().toLowerCase();
+        if (h.startsWith("[") && h.endsWith("]")) h = h.substring(1, h.length() - 1);
+        return h.equals("localhost") || h.equals("::1") || h.equals("0:0:0:0:0:0:0:1")
+                || (h.startsWith("127.") && h.length() > 4);
+    }
+
     public void attachAuth(WebAuthService auth) {
         this.auth = auth;
         server.createContext("/login", this::handleLogin);
@@ -87,6 +102,8 @@ public class WebStatusServer {
         return ex -> {
             WebAuthService a = this.auth;          // evaluated per request (late attach)
             if (a == null) { h.handle(ex); return; }
+            // v0.27.0 — loopback bypass: the device hosting the server is already trusted hands-on
+            if (localBypass && isLoopbackHost(ipOf(ex))) { h.handle(ex); return; }
             String cookie = ex.getRequestHeaders().getFirst("Cookie");
             if (a.sessionForCookie(cookie) != null) { h.handle(ex); return; }
             String path = ex.getRequestURI().getPath();

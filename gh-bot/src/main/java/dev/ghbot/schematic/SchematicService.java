@@ -63,6 +63,36 @@ public class SchematicService {
         return f;
     }
 
+    /**
+     * v0.27.0 — paste-ambiguity: fuzzy candidates for a (missing/exact) library
+     * query, so `paste` can ASK instead of guessing. Files only, top level.
+     */
+    public List<String> candidates(String query) {
+        if (!Files.isDirectory(schematicsDir)) return List.of();
+        List<String> names = new ArrayList<>();
+        try (var ds = Files.list(schematicsDir)) {
+            ds.filter(Files::isRegularFile).forEach(p -> names.add(p.getFileName().toString()));
+        } catch (Throwable ignored) {}
+        return filterCandidates(names, query);
+    }
+
+    /** Headless seam: stem-exact / stem-prefix / substring (case-insens), sorted, de-duped. */
+    public static List<String> filterCandidates(List<String> names, String query) {
+        if (query == null || query.isBlank()) return List.of();
+        String q = query.toLowerCase().trim();
+        List<String> out = new ArrayList<>();
+        if (names != null) {
+            for (String n : names) {
+                if (n == null) continue;
+                String nl = n.toLowerCase();
+                String stem = nl.contains(".") ? nl.substring(0, nl.lastIndexOf('.')) : nl;
+                if ((stem.equals(q) || stem.startsWith(q) || nl.contains(q)) && !out.contains(n)) out.add(n);
+            }
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
     /** Export a voxel model to files. format "all" or a codec id. Returns written paths. */
     public List<Path> export(String name, VoxelModel model, String format) throws IOException {
         Files.createDirectories(schematicsDir);

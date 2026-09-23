@@ -64,6 +64,21 @@ public class UndoManager {
         return out;
     }
 
+    /** v0.27.0 — non-destructive view of what popForUndo WOULD pop (same selection),
+     *  so the drift check can inspect first and the stack survives a refusal. */
+    public java.util.List<EditSnapshot> peekForUndo(GHBot bot, int minutes) {
+        Deque<EditSnapshot> st = stacks.get(bot.id());
+        if (st == null || st.isEmpty()) return java.util.Collections.emptyList();
+        java.util.List<EditSnapshot> out = new java.util.ArrayList<>();
+        long windowStart = minutes > 0 ? System.currentTimeMillis() - minutes * 60_000L : Long.MIN_VALUE;
+        for (EditSnapshot s : st) {
+            if (minutes > 0 && s.timestampMs < windowStart) break;
+            out.add(s);
+            if (minutes <= 0) break;
+        }
+        return out;
+    }
+
     public int stackSize(GHBot bot) {
         Deque<EditSnapshot> st = stacks.get(bot.id());
         return st == null ? 0 : st.size();

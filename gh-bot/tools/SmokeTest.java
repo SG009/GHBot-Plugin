@@ -2284,6 +2284,69 @@ public class SmokeTest {
                     && java.util.Arrays.toString(atRel.args()).equals("[reload]")
                     && "audit reload".equals(atRel.display())
                     && atUpd != null && java.util.Arrays.toString(atUpd.args()).equals("[updates]"));
+
+            // ── v0.27.0 — Phase E (items 1 + 4): undo drift-guard + web loopback
+            //    bypass + paste-ambiguity + catalog auto-refresh ──
+            dev.ghbot.edit.EditSnapshot dg1 = new dev.ghbot.edit.EditSnapshot("set", "tester");
+            dg1.changes.add(new dev.ghbot.edit.Change("world", 1, 2, 3,
+                    org.bukkit.Material.AIR, org.bukkit.Material.DIAMOND_BLOCK));
+            dg1.changes.add(new dev.ghbot.edit.Change("world", 4, 5, 6,
+                    org.bukkit.Material.DIRT, org.bukkit.Material.GOLD_BLOCK));
+            dg1.changes.add(new dev.ghbot.edit.Change("world", 7, 8, 9,
+                    org.bukkit.Material.STONE, org.bukkit.Material.EMERALD_BLOCK));
+            check("undo drift counts only positions that lost the edit's result",
+                    dev.ghbot.edit.BlockEditService.driftOf(dg1, c ->
+                            c.x == 1 ? org.bukkit.Material.DIAMOND_BLOCK.ordinal()
+                          : c.x == 4 ? org.bukkit.Material.OAK_LOG.ordinal()
+                          : org.bukkit.Material.EMERALD_BLOCK.ordinal()) == 1);
+            check("undo drift skips unreadable positions (world gone ≠ drift)",
+                    dev.ghbot.edit.BlockEditService.driftOf(dg1, c -> -1) == 0);
+            check("clean world reports zero drift (every position holds the edit result)",
+                    dev.ghbot.edit.BlockEditService.driftOf(dg1, c -> c.newType.ordinal()) == 0);
+            dev.ghbot.config.BotConfig cfgE = new dev.ghbot.config.BotConfig();
+            cfgE.setId("GHE9");
+            GHBot botE = new GHBot("GHE9", cfgE);
+            UndoManager umE = new UndoManager(10);
+            var snapE = umE.begin(botE, "set", "tester");
+            snapE.changes.add(new dev.ghbot.edit.Change("world", 1, 1, 1,
+                    org.bukkit.Material.AIR, org.bukkit.Material.STONE));
+            umE.finish(botE);
+            check("peekForUndo is non-destructive (inspect first, stack survives refusal)",
+                    umE.peekForUndo(botE, 0).size() == 1 && umE.stackSize(botE) == 1
+                    && umE.popForUndo(botE, 0).size() == 1 && umE.stackSize(botE) == 0);
+            check("peekForUndo on an empty stack is safely empty",
+                    umE.peekForUndo(botE, 0).isEmpty());
+            check("loopback bypass covers ONLY this device (127/8 dot-checked, ::1, localhost)",
+                    dev.ghbot.web.WebStatusServer.isLoopbackHost("127.0.0.1")
+                    && dev.ghbot.web.WebStatusServer.isLoopbackHost("127.0.0.2")
+                    && dev.ghbot.web.WebStatusServer.isLoopbackHost("::1")
+                    && dev.ghbot.web.WebStatusServer.isLoopbackHost("[::1]")
+                    && !dev.ghbot.web.WebStatusServer.isLoopbackHost("192.168.1.5")
+                    && !dev.ghbot.web.WebStatusServer.isLoopbackHost("10.0.0.2")
+                    && !dev.ghbot.web.WebStatusServer.isLoopbackHost("1270.0.0.1")
+                    && !dev.ghbot.web.WebStatusServer.isLoopbackHost(null));
+            org.bukkit.configuration.file.YamlConfiguration y27 = new org.bukkit.configuration.file.YamlConfiguration();
+            y27.loadFromString("server:\n  web:\n    enabled: true\n    local-bypass: true\n");
+            PluginConfig cfg27 = PluginConfig.loadFrom(y27);
+            org.bukkit.configuration.file.YamlConfiguration y27b = new org.bukkit.configuration.file.YamlConfiguration();
+            y27b.loadFromString("server:\n  web:\n    enabled: true\n");
+            PluginConfig cfg27b = PluginConfig.loadFrom(y27b);
+            check("web.local-bypass parses, default stays OFF (secure by default)",
+                    cfg27.webLocalBypass() && !cfg27b.webLocalBypass());
+            check("paste candidates: stem/prefix/substring match, sorted, extension-aware",
+                    dev.ghbot.schematic.SchematicService.filterCandidates(
+                            java.util.List.of("castle-hill.json", "castle2.schem", "tower.schem",
+                                    "Castled.litematic"), "castle")
+                            .equals(java.util.List.of("Castled.litematic", "castle-hill.json", "castle2.schem"))
+                    && dev.ghbot.schematic.SchematicService.filterCandidates(java.util.List.of("a.json"), "zzz").isEmpty()
+                    && dev.ghbot.schematic.SchematicService.filterCandidates(java.util.List.of("a.json"), "").isEmpty());
+            Path gpPathE = Path.of("src/main/java/dev/ghbot/GHBotPlugin.java");
+            if (!Files.exists(gpPathE)) gpPathE = Path.of("gh-bot/src/main/java/dev/ghbot/GHBotPlugin.java");
+            String gpSrcE = Files.exists(gpPathE) ? Files.readString(gpPathE) : "";
+            check("catalog auto-refresh-on-empty is wired at boot (source drift guard)",
+                    gpSrcE.contains("auto-refreshed on empty"));
+            check("web loopback bypass is wired from config (source drift guard)",
+                    gpSrcE.contains("setLocalBypass(cfg.webLocalBypass())"));
         }
         // (4e) v0.25.0 — Phase C: eyes lattice + set precision loop + Good-Result pack
         {

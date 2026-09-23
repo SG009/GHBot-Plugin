@@ -138,10 +138,14 @@ public final class BlockEditCommands {
         // ── undo ──
         r.register("undo", (b, ctx) -> {
             CommandSender sender = ctx.sender();
-            int minutes = 0;
-            if (ctx.args().length >= 1 && ctx.args()[0].matches("\\d+")) minutes = Math.max(1, Integer.parseInt(ctx.args()[0]));
-            svc.undo(b, minutes, sender, () -> {});
-        }, CommandRegistry.Meta.of("Undo last edit (or within N minutes)", "undo [minutes]"));
+            // v0.27.0 — "undo confirm [minutes]" forces through a drift refusal
+            boolean force = ctx.args().length >= 1 && ctx.args()[0].equalsIgnoreCase("confirm");
+            String minArg = force ? (ctx.args().length >= 2 ? ctx.args()[1] : "")
+                    : (ctx.args().length >= 1 ? ctx.args()[0] : "");
+            int minutes = minArg.matches("\\d+") ? Math.max(1, Integer.parseInt(minArg)) : 0;
+            svc.undo(b, minutes, sender, () -> {}, force);
+        }, CommandRegistry.Meta.of("Undo last edit / within N minutes (drift-refused unless `undo confirm`)",
+                "undo [minutes|confirm [minutes]]"));
     }
 
     private static Location base(CommandSender sender, GHBot bot) {

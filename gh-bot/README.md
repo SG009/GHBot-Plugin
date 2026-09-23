@@ -1,13 +1,13 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) · smoke **579/579 PASS** · jar `GHBot-0.26.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) · smoke **589/589 PASS** · jar `GHBot-0.27.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.26.0 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.27.0 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-09-23**. The rest of the
@@ -17,6 +17,33 @@
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.27.0 (Phase E start — undo drift-guard + small-batch safety; Phase D dropped by owner)
+
+- **Undo drift-guard (Q1, green-lit):** `undo` now verifies *natural drift* before restoring.
+  Every undo snap records old→new per position; before reverting, GHBot checks the world still
+  holds what the edit left behind (exact per-position compare — unreadable positions are skipped,
+  never counted). Drift found → **non-destructive refusal** (`peekForUndo`; the stack survives):
+  the message names the drift count and the force path (`GH000 undo confirm [minutes]`), the audit
+  log (`logs/edits.log`) records both the refusal and any confirmed overwrite. No drift → `undo`
+  behaves exactly as before. Live-proven: drift → refuse → drifted block survives → `undo confirm` →
+  reverted with "(drift overwritten as confirmed: 1 position(s))".
+- **Web `local-bypass` (viewer local-mode, opt-in):** `server.web.local-bypass: true` in config.yml
+  → requests **from the server's own device** (127.0.0.0/8 dot-checked / ::1) skip the login page —
+  the owner browses the console on the host phone itself without re-entering the boot-token.
+  LAN/remote devices still hit the v0.23.1 gate; default stays OFF (secure by default).
+- **Paste-ambiguity prompt:** `paste castle` with no exact file but matches in the library →
+  asks with real candidates (`did you mean castle-hill.json, castle2.schem?`) instead of a dead
+  "no such file" — and never guess-pastes. Stem/prefix/substring matching, extension-aware, ≤6 shown.
+- **Catalog auto-refresh on empty:** boot never refreshed the server-command catalog (only
+  `refresh`//gh reload did) — 2 s after enable an empty catalog now refreshes itself
+  (live: `auto-refreshed on empty: 213 commands`).
+- **Smoke 589/589** (+10): drift exactness/unreadable-skip/zero-drift, peek non-destructiveness,
+  loopback host matrix (incl. `1270.0.0.1` boundary), config parse + secure default, candidates
+  ordering/empty, two source drift-guards (bypass wiring, auto-refresh wiring). Mutations G/H/I
+  each killed exactly their pins.
+- **Live-verified on sandbox Paper 1.21.11-132** (see bullets above) + no-drift undo regression +
+  audit footer regression + clean shutdown.
 
 ### What's new in v0.26.0 (audit fix-advisor — Phase E2, owner-proposed "hand me the fix, correctly")
 
@@ -419,7 +446,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **579 checks**):
+2. Recompile + run the smoke suite (currently **589 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -515,7 +542,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (579 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (589 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)

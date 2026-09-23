@@ -147,7 +147,10 @@ is why precision asks degrade to "manually type setblock".
 ## Phase C+ — v0.26.0 · Audit Fix-Advisor (owner-proposed mid-batch, greenlit by "Continue..") ✅ SHIPPED 2026-09-23
 Owner: "this audit feature shouldn't just inform error events but hand the admin the advice on how/what it needs — correctly — to fix the issues." Shipped: numbered digest + `audit show <n>` full browse · `audit fix <n>` from hand-editable **audit-fixes.yml** (owner rules > 19 built-ins, `audit reload` live) · clearly-labeled AI-guess fallback · synchronous `audit updates` with check age + pre-release risk notes. Smoke 579/579 (+24, mutations D/E/F validated); live-verified incl. edit→reload→answer round-trip. Deferred inside: none.
 
-## Phase D — v0.26.0 · Terraform brushes (WorldPainter-style, phone-sized)
+## Phase D — ~~v0.26.0 · Terraform brushes~~ ❌ DROPPED BY OWNER 2026-09-23
+*"skip the phase D and proceed the phase E, i dont think GHBot should have that feature anyway"* — `terraform` stays flatten-only; the brush scope below is kept for history, never scheduled.
+
+## ~~Phase D~~ (dropped — see above)
 
 > Owner: "if possible we could make this part to have the same feature as
 > Worldpainter has. What do you think?"
@@ -174,12 +177,17 @@ undo, dry-run). v1 subset over the existing flatten machinery:
 ## Phase E — v0.27.x queue (green-lit, in this order)
 
 > Owner: "from 5 to 8 is good, nothing to adjust. Green light!"
+> Phase D skipped by owner → Phase E started 2026-09-23.
 
 1. **Q1 undo drift-guard** — undo verifies natural drift before restore.
-2. **Vision auto-verify loop** — post-build vision check → self-repair pass.
-3. **`.mcstructure` export** (+ FAWE fast-paste API research).
-4. Small batch: viewer local-mode · catalog auto-refresh on empty ·
-   AutoTools paste-ambiguity prompt.
+   **✅ SHIPPED in v0.27.0** — exact per-position drift (`Change.newType` vs world);
+   refusal is non-destructive (`peekForUndo`), `undo confirm [minutes]` forces with
+   truthful audit; live-proven (drift→refuse→survive→confirm→revert).
+2. **Vision auto-verify loop** — post-build vision check → self-repair pass. ⏳ next (v0.27.x)
+3. **`.mcstructure` export** (+ FAWE fast-paste API research). ⏳ next (v0.27.x)
+4. Small batch: ✅ viewer local-mode (loopback bypass, opt-in) · ✅ catalog
+   auto-refresh on empty (213 cmds live) · ✅ paste-ambiguity prompt (never
+   guess-paste — asks with real candidates). **✅ SHIPPED in v0.27.0**
 
 ---
 *Research evidence this plan leans on: TerrainScanner heightmap already in

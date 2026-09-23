@@ -174,13 +174,61 @@ public class BlockEditService {
     }
 
     /* ── undo ── */
+    /**
+     * v0.27.0 — Phase E Q1 (owner green-lit): exact per-position drift count for a
+     * snapshot. Drift = positions where the world no longer holds what OUR edit left
+     * behind ({@code c.newType}) — i.e. someone/something else changed those blocks
+     * since. currentOrdinal returns the world's current block ordinal (-1 =
+     * unreadable/world gone → not counted). Headless-pinned static.
+     */
+    public static int driftOf(EditSnapshot snap, java.util.function.ToIntFunction<Change> currentOrdinal) {
+        if (snap == null) return 0;
+        int drift = 0;
+        for (Change c : snap.changes) {
+            int cur;
+            try { cur = currentOrdinal.applyAsInt(c); } catch (Throwable t) { cur = -1; }
+            if (cur >= 0 && cur != c.newType.ordinal()) drift++;
+        }
+        return drift;
+    }
+
     public void undo(GHBot bot, int minutes, CommandSender sender, Runnable done) {
+        undo(bot, minutes, sender, done, false);
+    }
+
+    /** v0.27.0 — drift-guarded undo: peek → exact drift check → refuse truthfully unless forced. */
+    public void undo(GHBot bot, int minutes, CommandSender sender, Runnable done, boolean force) {
+        List<EditSnapshot> peek = undo.peekForUndo(bot, minutes);
+        if (peek.isEmpty()) {
+            sender.sendMessage("§7[" + bot.id() + "] Nothing to undo.");
+            done.run();
+            return;
+        }
+        int drift = 0;
+        for (EditSnapshot s : peek) {
+            drift += driftOf(s, c -> {
+                World w = Bukkit.getWorld(c.world);
+                if (w == null) return -1;
+                try { return w.getBlockAt(c.x, c.y, c.z).getType().ordinal(); } catch (Throwable t) { return -1; }
+            });
+        }
+        if (drift > 0 && !force) {
+            sender.sendMessage("§e[" + bot.id() + "] ⚠ undo refused — §f" + drift + "§e block position(s)"
+                    + " in the edited area changed after this edit (something else touched it). Undoing now would"
+                    + " silently overwrite that. Check the area first, or force with §f" + bot.id()
+                    + " undo confirm" + (minutes > 0 ? " " + minutes : "") + "§e. Nothing was changed.");
+            log.editLog("[" + bot.id() + "] undo REFUSED — drift detected on " + drift
+                    + " position(s) (minutes=" + minutes + ", snapshots=" + peek.size() + ")");
+            done.run();
+            return;
+        }
         List<EditSnapshot> snaps = undo.popForUndo(bot, minutes);
         if (snaps.isEmpty()) {
             sender.sendMessage("§7[" + bot.id() + "] Nothing to undo.");
             done.run();
             return;
         }
+        final int driftFinal = drift;
         int[] reverted = {0};
         // apply on main thread in budgeted batches
         List<Change> all = new ArrayList<>();
@@ -202,9 +250,11 @@ public class BlockEditService {
             if (idx[0] >= all.size()) {
                 task.cancel();
                 audit(bot, "undo " + (minutes > 0 ? "(last " + minutes + " min) " : "")
-                        + "reverted " + reverted[0] + " blocks by " + sender.getName());
+                        + "reverted " + reverted[0] + " blocks by " + sender.getName()
+                        + (force && driftFinal > 0 ? " (drift overwritten as confirmed: " + driftFinal + " position(s))" : ""));
                 sender.sendMessage("§a[" + bot.id() + "] Undone " + snaps.size() + " operation(s), reverted "
-                        + reverted[0] + " blocks.");
+                        + reverted[0] + " blocks."
+                        + (force && driftFinal > 0 ? " §7(" + driftFinal + " drifted position(s) overwritten as confirmed)" : ""));
                 done.run();
             }
         }, 1L, 1L);
