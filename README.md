@@ -1,25 +1,25 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.22.0 JARVIS-FOR-ADMIN + v0.22.1 Eyes-as-Data + v0.22.2 Pillar-3 cmd output capture + v0.22.3 live-batch regression sweep (cmd dispatch on Paper 1.21, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` truth) + v0.23.0 web-console login token (Q3) + v0.23.1 login lands you back where you were going (default: the console) + v0.24.0 console-log auditor (Phase B: WARN/ERROR digest per plugin + practical hints + installed-only update radar — DiscordSRV-validated design) + v0.25.0 eyes lattice & Good-Result build pack (Phase C: scan → x,z: y material grid for the AI + viewer scan layer + look-then-set precision + gold exemplars/style sheets/two-pass generation) + v0.26.0 audit fix-advisor (owner-proposed: numbered digest groups → `audit show <n>` full browse, `audit fix <n>` from a hand-editable audit-fixes.yml knowledge base with AI-guess fallback, instant update tables with risk notes) + v0.27.0 Phase E start (Phase D dropped by owner: undo drift-guard with `undo confirm`, loopback web login bypass, paste-ambiguity asks, catalog auto-refresh on empty) · smoke 589/589 PASS · jar `GHBot-0.27.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.22.0 JARVIS-FOR-ADMIN + v0.22.1 Eyes-as-Data + v0.22.2 Pillar-3 cmd output capture + v0.22.3 live-batch regression sweep (cmd dispatch on Paper 1.21, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` truth) + v0.23.0 web-console login token (Q3) + v0.23.1 login lands you back where you were going (default: the console) + v0.24.0 console-log auditor (Phase B: WARN/ERROR digest per plugin + practical hints + installed-only update radar — DiscordSRV-validated design) + v0.25.0 eyes lattice & Good-Result build pack (Phase C: scan → x,z: y material grid for the AI + viewer scan layer + look-then-set precision + gold exemplars/style sheets/two-pass generation) + v0.26.0 audit fix-advisor (owner-proposed: numbered digest groups → `audit show <n>` full browse, `audit fix <n>` from a hand-editable audit-fixes.yml knowledge base with AI-guess fallback, instant update tables with risk notes) + v0.27.0 Phase E start (Phase D dropped by owner: undo drift-guard with `undo confirm`, loopback web login bypass, paste-ambiguity asks, catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT + FAWE research, no FAWE dep) · smoke 607/607 PASS · jar `GHBot-0.27.1.jar`**
 
 > A hands-off AI-bot that replaces the admin for managing a Minecraft server and in-game designs.
 
 ## Quick pointers
 
 - **Start here for the full picture:** [`gh-bot/README.md`](gh-bot/README.md) — contains the
-  **agent handoff brief** (current state at v0.27.0: what the plugin is, the JSON-spec contract,
+  **agent handoff brief** (current state at v0.27.1: what the plugin is, the JSON-spec contract,
   build/test/ship commands, sandbox constraints, open backlog).
 - **Full history:** [`ai-builder-bot-plan.md`](ai-builder-bot-plan.md) — master plan + §17
   per-version changelog (v0.21.33 → v0.21.41: JSON method evolution + hardening).
 - **Plugin source:** [`gh-bot/`](gh-bot/) — Java 21, Paper API 1.21.11, package `dev.ghbot.*`
   (never `dev.ghbot.build`), hand-rolled JSON (no Gson).
-- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (589 checks) + `setup-build.sh` (restores the
+- **Smoke suite:** `gh-bot/tools/SmokeTest.java` (607 checks) + `setup-build.sh` (restores the
   JDK21/Gradle toolchain into /tmp — the dev sandbox resets every turn). For sandboxes where
   only GitHub/PyPI/npm egress is allowed (no Gradle/Maven/adoptium), `gh-bot/tools/sandbox-build.sh`
   reproduces the same compile+smoke+jar using a PyPI JDK21 runtime + Eclipse ECJ + a public repo's
   committed paper-api dependency cache.
 - **Reference build spec fixture:** `gh-bot/tools/fixtures/ancient_dragon.json` (141 KB / 1,852 blocks).
-- **Releases:** `releases/GHBot-<ver>.jar` (current ship: v0.27.0; owner policy: the previous version is ALWAYS deleted at ship time — `releases/` holds only the newest). The GitHub **Releases page** mirrors this: previous release + tag deleted, newest `v<ver>` release created with the jar attached (`gh-bot/tools/github-release.sh`).
+- **Releases:** `releases/GHBot-<ver>.jar` (current ship: v0.27.1; owner policy: the previous version is ALWAYS deleted at ship time — `releases/` holds only the newest). The GitHub **Releases page** mirrors this: previous release + tag deleted, newest `v<ver>` release created with the jar attached (`gh-bot/tools/github-release.sh`).
 - **Old project:** `uploads/` — the owner's previous mineflayer GH-series bot (kept for reference).
 
 ## The one core mechanic

@@ -1,22 +1,43 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) · smoke **589/589 PASS** · jar `GHBot-0.27.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) · smoke **607/607 PASS** · jar `GHBot-0.27.1.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.27.0 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.27.1 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-09-23**. The rest of the
+> read this section first. It is the verified truth as of **2026-09-23** (v0.27.1). The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog. The next-batch plan (v0.23→v0.27) lives in
 > `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.27.1 (Phase E item 3 — Bedrock `.mcstructure` export + FAWE research)
+
+- **Bedrock `.mcstructure` export:** `export <name> mcstructure` (alias `bedrock`) and `export <name> all`
+  now write an uncompressed little-endian NBT `.mcstructure` next to the five Java formats. Spec-accurate:
+  `format_version=1`, `size`/`structure_world_origin` as TAG_List of 3 ints (NOT Int_Array — Bedrock
+  refuses those), two `block_indices` layers in ZYX order, empty cells `-1` (structure void), palette
+  `{name, states{}, version=18168865}`. Known Java→Bedrock name remaps (`grass_block→grass`, `cobweb→web`,
+  `dirt_path→grass_path`, …); reverse-map on import so `paste foo.mcstructure` restages on the Java server.
+  Honest limit: voxels have no blockstates, so waterlogged second-layer is all `-1`; unknown names are
+  emitted as `minecraft:<java>` (Bedrock places air if it does not know them).
+- **FAWE: research only, no dependency.** Owner's 6 GB phone already runs Paper+Geyser+Via*+DiscordSRV —
+  FAWE would bypass GHBot undo/ghost/drift-guard, and we already export Sponge `.schem` which FAWE eats
+  if a dedicated creative box appears later. Write-up: `docs/RESEARCH-mcstructure-fawe.md`.
+- **Smoke 607/607** (+18): LE sniff vs vanilla `.nbt`, `format_version` LE int 1, size TAG_List not
+  Int_Array, deterministic palette, two layers + `-1` voids, ZYX diamond_block at local (0,3,5)=index 23,
+  remaps + reverse-map round-trip, `export format mcstructure/bedrock` writes exactly one file, codec
+  registered. Mutations G (XYZ index) / H (size as Int_Array) / I (skip grass remap) killed exactly
+  their pins.
+- **Live-verified on sandbox Paper 1.21.11-132:** pasted 3-block JSON spec staged → `export mcs_live mcstructure`
+  → 409-byte LE file (`0a 00 00 03 0e 00 format_version 01 00 00 00`), namespaced palette present.
 
 ### What's new in v0.27.0 (Phase E start — undo drift-guard + small-batch safety; Phase D dropped by owner)
 
@@ -38,7 +59,7 @@
 - **Catalog auto-refresh on empty:** boot never refreshed the server-command catalog (only
   `refresh`//gh reload did) — 2 s after enable an empty catalog now refreshes itself
   (live: `auto-refreshed on empty: 213 commands`).
-- **Smoke 589/589** (+10): drift exactness/unreadable-skip/zero-drift, peek non-destructiveness,
+- **Smoke 589/589** (+10, v0.27.0): drift exactness/unreadable-skip/zero-drift, peek non-destructiveness,
   loopback host matrix (incl. `1270.0.0.1` boundary), config parse + secure default, candidates
   ordering/empty, two source drift-guards (bypass wiring, auto-refresh wiring). Mutations G/H/I
   each killed exactly their pins.
@@ -446,7 +467,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **589 checks**):
+2. Recompile + run the smoke suite (currently **607 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -542,7 +563,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (589 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (607 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)

@@ -39,7 +39,8 @@ public final class SchematicCommands {
             for (int i = 1; i < ctx.args().length; i++) {
                 String a = ctx.args()[i];
                 if (a.equalsIgnoreCase("all") || a.equalsIgnoreCase("schem") || a.equalsIgnoreCase("schematic")
-                        || a.equalsIgnoreCase("litematic") || a.equalsIgnoreCase("nbt")) {
+                        || a.equalsIgnoreCase("litematic") || a.equalsIgnoreCase("nbt")
+                        || a.equalsIgnoreCase("mcstructure")) {
                     format = a;
                 } else {
                     if (prompt.length() > 0) prompt.append(' ');

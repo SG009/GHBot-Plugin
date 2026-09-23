@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.27.0 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.27.1 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -14,8 +14,8 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `build <prompt> [--direct] [at <where>]` | Design + stage a build (ghost → review) |
 | `plan <prompt>` | Text-only design preview (no blocks) |
 | `edit <target\|here> <instruction>` | Modify an existing build by instruction |
-| `schem <name> <prompt> [format\|all]` | Design + export a schematic |
-| `schem import <file> [name]` | Import a schematic file (Sponge v2/v3, Classic, Vanilla .nbt, Litematic) |
+| `schem <name> <prompt> [format\|all]` | Design + export a schematic. **v0.27.1:** format `mcstructure` |
+| `schem import <file> [name]` | Import a schematic file (Sponge v2/v3, Classic, Vanilla .nbt, Litematic, Bedrock `.mcstructure`) |
 | `paste <file> [where]` | Paste a schematic in-world (stages a ghost → review). **v0.22.2:** `<file>` must live inside the schematics library (traversal rejected); negative-`Size` `.litematic` regions import correctly |
 | `library` | Browse the schematic library |
 | `export <name> [format\|all]` | Export the staged build as schematics |
@@ -109,5 +109,6 @@ to revive. **(v0.25.0 revived `teach` + `dataset` this way — they power the go
   Essentials GitHub, Modrinth for Geyser/floodgate/Via*/LuckPerms; quiet-once notify,
   first pass +60 s then daily). Chat phrases "any errors?" / "check for updates" route
   here. Owner design: an AUDITOR, not a second console — "why we need 2 server logs".
-- **Next backlog:** Phase C eyes+good-result build pack · Phase D terraform brushes ·
-  `.mcstructure` Bedrock export · FAWE fast-paste · undo drift-guard (Q1).
+- **Next backlog:** Phase E remaining — vision auto-verify loop (post-build check → self-repair).
+  **Shipped:** Phase C eyes+good-result · Phase D skipped by owner · `.mcstructure` Bedrock export
+  (v0.27.1; FAWE researched, not depended on) · undo drift-guard (v0.27.0).

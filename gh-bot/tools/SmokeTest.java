@@ -54,6 +54,8 @@ import dev.ghbot.schematic.SchematicService;
 import dev.ghbot.schematic.SpongeV2Codec;
 import dev.ghbot.schematic.SpongeV3Codec;
 import dev.ghbot.schematic.VanillaNbtCodec;
+import dev.ghbot.schematic.McstructureCodec;
+import dev.ghbot.schematic.LeNbtWriter;
 import dev.ghbot.web.WebStatusServer;
 import dev.ghbot.terrain.TerrainScanner;
 import dev.ghbot.session.SessionStore;
@@ -72,6 +74,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -552,12 +555,16 @@ public class SmokeTest {
         try {
             SchematicService ss = new SchematicService(dataDir, wlog);
             java.util.List<java.nio.file.Path> written = ss.export("testbuild", vm2, "all");
-            check("schem service writes 5 files", written.size() == 5);
+            check("schem service writes 6 files (5 java + mcstructure)", written.size() == 6
+                    && written.stream().anyMatch(p -> p.toString().endsWith(".mcstructure")));
             var lib = ss.library();
             check("schem library lists files", lib.size() >= 3);
+            check("schem library lists .mcstructure",
+                    lib.stream().anyMatch(p -> p.getFileName().toString().endsWith(".mcstructure")));
         } catch (Exception e) {
-            check("schem service writes 5 files", false);
+            check("schem service writes 6 files (5 java + mcstructure)", false);
             check("schem library lists files", false);
+            check("schem library lists .mcstructure", false);
         }
 
         // v0.21.45 — paste actually stages a ghost; import handles Sponge v3 STRING palettes
@@ -2548,9 +2555,173 @@ public class SmokeTest {
             check("litematica negative size decodes all blocks", false);
         }
 
+
+        // ── v0.27.1 — Phase E item 3: Bedrock .mcstructure export + FAWE research ──
+        {
+            VoxelModel vmMcs = new VoxelModel();
+            vmMcs.set(0, 0, 0, "oak_planks");
+            vmMcs.set(1, 0, 0, "glass");
+            vmMcs.set(0, 1, 0, "stone_bricks");
+            vmMcs.set(-2, 3, 5, "diamond_block");
+            try {
+                McstructureCodec mcs = new McstructureCodec();
+                byte[] raw = mcs.export(vmMcs.entriesMapSafe(), -2, 0, 0, 4, 4, 6);
+                check("mcstructure exports uncompressed compound (not gzip)",
+                        raw.length > 40 && (raw[0] & 0xFF) == 10);
+                check("mcstructure bytes sniff as little-endian (vanilla .nbt does not)",
+                        LeNbtWriter.looksLittleEndian(raw)
+                        && !LeNbtWriter.looksLittleEndian(
+                                new VanillaNbtCodec().export(vmMcs.entriesMapSafe(), -2, 0, 0, 4, 4, 6)));
+                byte[] fv = new byte[]{3, 14, 0,
+                        'f','o','r','m','a','t','_','v','e','r','s','i','o','n',
+                        1, 0, 0, 0};
+                check("mcstructure format_version is little-endian int 1", indexOf(raw, fv) >= 0);
+                byte[] sizeList = new byte[]{9, 4, 0, 's','i','z','e'};
+                byte[] sizeArr  = new byte[]{11, 4, 0, 's','i','z','e'};
+                check("mcstructure size is TAG_List not TAG_Int_Array (Bedrock refuses arrays)",
+                        indexOf(raw, sizeList) >= 0 && indexOf(raw, sizeArr) < 0);
+                check("mcstructure two exports are byte-identical (sorted palette)",
+                        java.util.Arrays.equals(raw, mcs.export(vmMcs.entriesMapSafe(), -2, 0, 0, 4, 4, 6)));
+
+                NbtReader.Result parsed = LeNbtWriter.read(raw);
+                Map<String, Object> root = parsed.root();
+                check("mcstructure parse: format_version=1 + empty root name",
+                        "".equals(parsed.name()) && Integer.valueOf(1).equals(root.get("format_version")));
+                Object sizeObj = root.get("size");
+                check("mcstructure parse: size is List of 3 ints [4,4,6]",
+                        sizeObj instanceof java.util.List<?> sl && sl.size() == 3
+                        && Integer.valueOf(4).equals(sl.get(0))
+                        && Integer.valueOf(4).equals(sl.get(1))
+                        && Integer.valueOf(6).equals(sl.get(2)));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> structure = (Map<String, Object>) root.get("structure");
+                @SuppressWarnings("unchecked")
+                java.util.List<Object> layers = (java.util.List<Object>) structure.get("block_indices");
+                @SuppressWarnings("unchecked")
+                java.util.List<Integer> primary = (java.util.List<Integer>) layers.get(0);
+                @SuppressWarnings("unchecked")
+                java.util.List<Integer> secondary = (java.util.List<Integer>) layers.get(1);
+                int cells = 4 * 4 * 6;
+                int voids = 0;
+                for (Integer v : primary) if (v != null && v == -1) voids++;
+                boolean secAllVoid = true;
+                for (Integer v : secondary) if (v == null || v != -1) { secAllVoid = false; break; }
+                check("mcstructure two layers, ZYX length w*h*d, empty cells are -1, secondary all-void",
+                        layers.size() == 2 && primary.size() == cells && secondary.size() == cells
+                        && voids == cells - 4 && secAllVoid);
+                int di = McstructureCodec.index(0, 3, 5, 4, 4, 6);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> palRoot = (Map<String, Object>) ((Map<?, ?>) structure.get("palette")).get("default");
+                @SuppressWarnings("unchecked")
+                java.util.List<Object> bpal = (java.util.List<Object>) palRoot.get("block_palette");
+                int diamondPid = -2;
+                boolean namespaced = true;
+                boolean versioned = true;
+                for (int i = 0; i < bpal.size(); i++) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> e = (Map<String, Object>) bpal.get(i);
+                    String nm = String.valueOf(e.get("name"));
+                    if (!nm.startsWith("minecraft:")) namespaced = false;
+                    if (!Integer.valueOf(McstructureCodec.BLOCK_VERSION).equals(e.get("version"))) versioned = false;
+                    if ("minecraft:diamond_block".equals(nm)) diamondPid = i;
+                }
+                check("mcstructure ZYX index: diamond_block at local (0,3,5) is palette slot 23",
+                        di == 23 && diamondPid >= 0 && Integer.valueOf(diamondPid).equals(primary.get(23)));
+                check("mcstructure palette names are minecraft: + packed 1.21 block version",
+                        namespaced && versioned && bpal.size() == 4
+                        && palRoot.get("block_position_data") instanceof Map<?, ?>);
+
+                VoxelModel rtM = SchematicImporter.importFile(raw);
+                boolean rtOk = rtM != null && rtM.size() == 4
+                        && "oak_planks".equals(rtM.get(2, 0, 0))
+                        && "glass".equals(rtM.get(3, 0, 0))
+                        && "stone_bricks".equals(rtM.get(2, 1, 0))
+                        && "diamond_block".equals(rtM.get(0, 3, 5));
+                check("mcstructure round-trip import recovers 4 blocks at ZYX-local coords", rtOk);
+
+                check("mcstructure Java→Bedrock remaps (and reverse for paste)",
+                        "grass".equals(McstructureCodec.bedrockName("grass_block"))
+                        && "grass".equals(McstructureCodec.bedrockName("minecraft:grass_block[snowy=false]"))
+                        && "web".equals(McstructureCodec.bedrockName("cobweb"))
+                        && "grass_path".equals(McstructureCodec.bedrockName("dirt_path"))
+                        && "oak_planks".equals(McstructureCodec.bedrockName("oak_planks"))
+                        && "grass_block".equals(McstructureCodec.javaName("grass"))
+                        && "cobweb".equals(McstructureCodec.javaName("minecraft:web")));
+                VoxelModel vmRemap = new VoxelModel();
+                vmRemap.set(0, 0, 0, "grass_block");
+                vmRemap.set(1, 0, 0, "cobweb");
+                vmRemap.set(0, 1, 0, "dirt_path");
+                byte[] remapBytes = mcs.export(vmRemap.entriesMapSafe(), 0, 0, 0, 2, 2, 1);
+                NbtReader.Result remapParsed = LeNbtWriter.read(remapBytes);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> remapStruct = (Map<String, Object>) remapParsed.root().get("structure");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> remapDef = (Map<String, Object>) ((Map<?, ?>) remapStruct.get("palette")).get("default");
+                @SuppressWarnings("unchecked")
+                java.util.List<Object> remapPal = (java.util.List<Object>) remapDef.get("block_palette");
+                java.util.Set<String> remapNames = new java.util.HashSet<>();
+                for (Object e : remapPal) remapNames.add(String.valueOf(((Map<?, ?>) e).get("name")));
+                check("mcstructure export remaps grass_block/cobweb/dirt_path in the palette",
+                        remapNames.equals(java.util.Set.of("minecraft:grass", "minecraft:web", "minecraft:grass_path")));
+                VoxelModel rtRemap = SchematicImporter.importFile(remapBytes);
+                check("mcstructure import reverse-maps back to Java names",
+                        rtRemap != null && rtRemap.size() == 3
+                        && "grass_block".equals(rtRemap.get(0, 0, 0))
+                        && "cobweb".equals(rtRemap.get(1, 0, 0))
+                        && "dirt_path".equals(rtRemap.get(0, 1, 0)));
+
+                SchematicService ssM = new SchematicService(dataDir, wlog);
+                var onlyMcs = ssM.export("onlybedrock", vmMcs, "mcstructure");
+                var aliasBedrock = ssM.export("aliased", vmMcs, "bedrock");
+                check("export format mcstructure/bedrock writes exactly one .mcstructure",
+                        onlyMcs.size() == 1 && onlyMcs.get(0).toString().endsWith(".mcstructure")
+                        && aliasBedrock.size() == 1 && aliasBedrock.get(0).toString().endsWith(".mcstructure"));
+                check("codecMatches: all/mcstructure/bedrock/mcs yes, nbt/schem no",
+                        SchematicService.codecMatches(mcs, "all")
+                        && SchematicService.codecMatches(mcs, "mcstructure")
+                        && SchematicService.codecMatches(mcs, "bedrock")
+                        && SchematicService.codecMatches(mcs, "mcs")
+                        && !SchematicService.codecMatches(mcs, "nbt")
+                        && !SchematicService.codecMatches(new VanillaNbtCodec(), "mcstructure"));
+                check("mcstructure codec is registered on SchematicService",
+                        ssM.codecs().stream().anyMatch(c -> c instanceof McstructureCodec
+                                && c.fileExtension().equals(".mcstructure")));
+            } catch (Exception e) {
+                System.out.println("  [FAIL-DBG] mcstructure: " + e);
+                e.printStackTrace(System.out);
+                check("mcstructure exports uncompressed compound (not gzip)", false);
+                check("mcstructure bytes sniff as little-endian (vanilla .nbt does not)", false);
+                check("mcstructure format_version is little-endian int 1", false);
+                check("mcstructure size is TAG_List not TAG_Int_Array (Bedrock refuses arrays)", false);
+                check("mcstructure two exports are byte-identical (sorted palette)", false);
+                check("mcstructure parse: format_version=1 + empty root name", false);
+                check("mcstructure parse: size is List of 3 ints [4,4,6]", false);
+                check("mcstructure two layers, ZYX length w*h*d, empty cells are -1, secondary all-void", false);
+                check("mcstructure ZYX index: diamond_block at local (0,3,5) is palette slot 23", false);
+                check("mcstructure palette names are minecraft: + packed 1.21 block version", false);
+                check("mcstructure round-trip import recovers 4 blocks at ZYX-local coords", false);
+                check("mcstructure Java→Bedrock remaps (and reverse for paste)", false);
+                check("mcstructure export remaps grass_block/cobweb/dirt_path in the palette", false);
+                check("mcstructure import reverse-maps back to Java names", false);
+                check("export format mcstructure/bedrock writes exactly one .mcstructure", false);
+                check("codecMatches: all/mcstructure/bedrock/mcs yes, nbt/schem no", false);
+                check("mcstructure codec is registered on SchematicService", false);
+            }
+        }
+
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")
                 + "  (" + pass + " passed, " + fail + " failed)");
         System.exit(fail == 0 ? 0 : 1);
+    }
+
+    /** Byte-string search for NBT tag-shape pins (little-endian vs Int_Array). */
+    static int indexOf(byte[] hay, byte[] needle) {
+        if (hay == null || needle == null || needle.length == 0 || hay.length < needle.length) return -1;
+        outer: for (int i = 0; i <= hay.length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++) if (hay[i + j] != needle[j]) continue outer;
+            return i;
+        }
+        return -1;
     }
 
     static void check(String name, boolean ok) {

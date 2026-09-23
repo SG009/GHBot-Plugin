@@ -184,7 +184,13 @@ undo, dry-run). v1 subset over the existing flatten machinery:
    refusal is non-destructive (`peekForUndo`), `undo confirm [minutes]` forces with
    truthful audit; live-proven (drift→refuse→survive→confirm→revert).
 2. **Vision auto-verify loop** — post-build vision check → self-repair pass. ⏳ next (v0.27.x)
-3. **`.mcstructure` export** (+ FAWE fast-paste API research). ⏳ next (v0.27.x)
+3. **`.mcstructure` export** (+ FAWE fast-paste API research).
+   **✅ SHIPPED in v0.27.1** — little-endian uncompressed NBT codec (`McstructureCodec` +
+   `LeNbtWriter`); ZYX indices, `-1` voids, two layers, `size` as TAG_List (not Int_Array);
+   Java→Bedrock remaps for the well-known divergences; round-trip import so `paste` restages
+   on Java. FAWE: **research-only, no code** — do not depend on FAWE on the 6 GB phone
+   (see `docs/RESEARCH-mcstructure-fawe.md`). Live: staged 3-block spec →
+   `export mcs_live mcstructure` → 409-byte LE file with `format_version=1`.
 4. Small batch: ✅ viewer local-mode (loopback bypass, opt-in) · ✅ catalog
    auto-refresh on empty (213 cmds live) · ✅ paste-ambiguity prompt (never
    guess-paste — asks with real candidates). **✅ SHIPPED in v0.27.0**

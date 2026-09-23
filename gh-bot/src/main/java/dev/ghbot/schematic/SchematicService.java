@@ -21,8 +21,9 @@ import java.util.TreeMap;
 /**
  * Phase 8 — schematic export/paste/library.
  * Exports a voxel model (or a live world region) to every major format:
- * Sponge v2/v3, Classic, Litematica, Vanilla .nbt. Files go to
- * plugins/GHBot/schematics/ (and the library is the teaching base, Phase 12).
+ * Sponge v2/v3, Classic, Litematica, Vanilla .nbt, Bedrock .mcstructure
+ * (v0.27.1). Files go to plugins/GHBot/schematics/ (and the library is
+ * the teaching base, Phase 12).
  */
 public class SchematicService {
 
@@ -38,7 +39,8 @@ public class SchematicService {
                 new SpongeV3Codec(),
                 new ClassicCodec(),
                 new LitematicaCodec(),
-                new VanillaNbtCodec());
+                new VanillaNbtCodec(),
+                new McstructureCodec());
     }
 
     public Path dir() { return schematicsDir; }
@@ -109,7 +111,7 @@ public class SchematicService {
         int w = maxX - minX + 1, h = maxY - minY + 1, d = maxZ - minZ + 1;
 
         for (SchematicCodec codec : codecs) {
-            if (!format.equalsIgnoreCase("all") && !codec.formatName().equalsIgnoreCase(format)) continue;
+            if (!codecMatches(codec, format)) continue;
             try {
                 byte[] bytes = codec.export(model.entriesMapSafe(), minX, minY, minZ, w, h, d);
                 String safeName = name.replaceAll("[^A-Za-z0-9_-]", "_");
@@ -142,13 +144,32 @@ public class SchematicService {
         return m;
     }
 
-    /** List library files. */
+    /**
+     * v0.27.1 — format selector: {@code all}, the codec's {@code formatName()},
+     * or Bedrock aliases ({@code bedrock}/{@code mcs}) for the mcstructure codec.
+     * Existing codecs keep matching on formatName only (no silent extension
+     * aliasing — {@code schem} still would collide v2+v3 both writing {@code .schem}).
+     */
+    public static boolean codecMatches(SchematicCodec codec, String format) {
+        if (format == null) return false;
+        if (format.equalsIgnoreCase("all")) return true;
+        if (codec.formatName().equalsIgnoreCase(format)) return true;
+        if (codec instanceof McstructureCodec
+                && (format.equalsIgnoreCase("bedrock")
+                    || format.equalsIgnoreCase("mcs")
+                    || format.equalsIgnoreCase(".mcstructure"))) {
+            return true;
+        }
+        return false;
+    }
+
     public List<Path> library() throws IOException {
         if (!Files.exists(schematicsDir)) return List.of();
         List<Path> out = new ArrayList<>();
         try (var stream = Files.list(schematicsDir)) {
             stream.filter(p -> p.toString().endsWith(".schem") || p.toString().endsWith(".schematic")
-                            || p.toString().endsWith(".litematic") || p.toString().endsWith(".nbt"))
+                            || p.toString().endsWith(".litematic") || p.toString().endsWith(".nbt")
+                            || p.toString().endsWith(".mcstructure"))
                     .sorted().forEach(out::add);
         }
         return out;

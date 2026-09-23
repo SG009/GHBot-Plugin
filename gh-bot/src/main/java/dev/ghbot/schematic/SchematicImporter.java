@@ -2,13 +2,14 @@ package dev.ghbot.schematic;
 
 import dev.ghbot.builder.VoxelModel;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Importers — read schematic files back into a {@link VoxelModel}.
- * Supports: Sponge v2/v3 (.schem), Classic (.schematic), Vanilla structure (.nbt).
- * (Litematica reader is more involved — lands later.)
+ * Supports: Sponge v2/v3 (.schem), Classic (.schematic), Vanilla structure (.nbt),
+ * Litematica, Bedrock {@code .mcstructure} (v0.27.1 — little-endian).
  */
 public final class SchematicImporter {
 
@@ -16,6 +17,18 @@ public final class SchematicImporter {
 
     /** Import any supported format by sniffing the root keys. Returns null if unsupported. */
     public static VoxelModel importFile(byte[] data) throws Exception {
+        // v0.27.1 — Bedrock .mcstructure is little-endian uncompressed NBT.
+        // The Java NbtReader would misread name lengths (BE vs LE) and throw.
+        if (LeNbtWriter.looksLittleEndian(data)) {
+            try {
+                NbtReader.Result le = LeNbtWriter.read(data);
+                if (le.root().containsKey("format_version") && le.root().containsKey("structure")) {
+                    return importMcstructure(le.root());
+                }
+            } catch (Exception ignored) {
+                // fall through to the Java/gzip reader
+            }
+        }
         NbtReader.Result r = NbtReader.read(data);
         Map<String, Object> root = r.root();
 
@@ -202,6 +215,73 @@ public final class SchematicImporter {
                     m.set(x, y, z, name);
                 }
         return m;
+    }
+
+    /**
+     * v0.27.1 — Bedrock .mcstructure. Primary layer only (secondary is waterlogged);
+     * {@code -1} and air skipped; palette names reverse-mapped to Java.
+     */
+    static VoxelModel importMcstructure(Map<String, Object> root) {
+        if (root == null) return null;
+        Object sizeObj = root.get("size");
+        int[] size = xyz3(sizeObj);
+        int w = Math.abs(size[0]), h = Math.abs(size[1]), d = Math.abs(size[2]);
+        if (w == 0 || h == 0 || d == 0) return new VoxelModel();
+        Object structureObj = root.get("structure");
+        if (!(structureObj instanceof Map<?, ?> structure)) return null;
+        Object layersObj = structure.get("block_indices");
+        if (!(layersObj instanceof List<?> layers) || layers.isEmpty()) return null;
+        Object primaryObj = layers.get(0);
+        if (!(primaryObj instanceof List<?> primary)) return null;
+
+        List<String> palette = new ArrayList<>();
+        Object palRoot = structure.get("palette");
+        if (palRoot instanceof Map<?, ?> palMap) {
+            Object def = palMap.get("default");
+            if (def instanceof Map<?, ?> defMap) {
+                Object bp = defMap.get("block_palette");
+                if (bp instanceof List<?> list) {
+                    for (Object e : list) {
+                        if (e instanceof Map<?, ?> em) {
+                            Object name = em.get("name");
+                            palette.add(name == null ? "air" : McstructureCodec.javaName(String.valueOf(name)));
+                        } else {
+                            palette.add("air");
+                        }
+                    }
+                }
+            }
+        }
+
+        VoxelModel m = new VoxelModel();
+        int total = w * h * d;
+        int n = Math.min(primary.size(), total);
+        for (int i = 0; i < n; i++) {
+            Object cell = primary.get(i);
+            if (!(cell instanceof Number num)) continue;
+            int pid = num.intValue();
+            if (pid < 0 || pid >= palette.size()) continue;
+            String block = palette.get(pid);
+            if (block == null || McstructureCodec.isAir(block)) continue;
+            int x = d == 0 || h == 0 ? 0 : i / (d * h);
+            int rem = d == 0 || h == 0 ? i : i % (d * h);
+            int y = d == 0 ? 0 : rem / d;
+            int z = d == 0 ? 0 : rem % d;
+            m.set(x, y, z, block);
+        }
+        return m;
+    }
+
+    /** size / origin: TAG_List of 3 ints (correct) or TAG_Int_Array (malformed-but-parseable). */
+    private static int[] xyz3(Object o) {
+        if (o instanceof int[] a && a.length >= 3) return new int[]{a[0], a[1], a[2]};
+        if (o instanceof List<?> l && l.size() >= 3
+                && l.get(0) instanceof Number && l.get(1) instanceof Number && l.get(2) instanceof Number) {
+            return new int[]{((Number) l.get(0)).intValue(),
+                    ((Number) l.get(1)).intValue(),
+                    ((Number) l.get(2)).intValue()};
+        }
+        return new int[]{0, 0, 0};
     }
 
     /** Vanilla structure: palette (list of {Name}), blocks (list of {state, pos[3]}), size. */
