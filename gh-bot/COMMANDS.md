@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.27.1 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.27.2 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -109,6 +109,7 @@ to revive. **(v0.25.0 revived `teach` + `dataset` this way — they power the go
   Essentials GitHub, Modrinth for Geyser/floodgate/Via*/LuckPerms; quiet-once notify,
   first pass +60 s then daily). Chat phrases "any errors?" / "check for updates" route
   here. Owner design: an AUDITOR, not a second console — "why we need 2 server logs".
-- **Next backlog:** Phase E remaining — vision auto-verify loop (post-build check → self-repair).
-  **Shipped:** Phase C eyes+good-result · Phase D skipped by owner · `.mcstructure` Bedrock export
-  (v0.27.1; FAWE researched, not depended on) · undo drift-guard (v0.27.0).
+- **Next backlog:** Phase E queue complete (v0.27.0–v0.27.2). Optional: owner-tuned vision model
+  (Gemini 2.5-flash or Ollama llava/qwen2-vl) + `build.verify-vision: true`.
+  **Shipped:** Phase C · Phase D skipped · `.mcstructure` (v0.27.1) · vision auto-verify (v0.27.2,
+  opt-in) · undo drift-guard (v0.27.0).

@@ -183,7 +183,12 @@ undo, dry-run). v1 subset over the existing flatten machinery:
    **✅ SHIPPED in v0.27.0** — exact per-position drift (`Change.newType` vs world);
    refusal is non-destructive (`peekForUndo`), `undo confirm [minutes]` forces with
    truthful audit; live-proven (drift→refuse→survive→confirm→revert).
-2. **Vision auto-verify loop** — post-build vision check → self-repair pass. ⏳ next (v0.27.x)
+2. **Vision auto-verify loop** — post-build vision check → self-repair pass.
+   **✅ SHIPPED in v0.27.2** — opt-in `build.verify-vision` (default OFF). After staging,
+   isometric PNG → vision checklist JSON; 1 repair pass for AI builds; pasted JSON
+   specs are the contract (notes only). Text-only Ollama skipped honestly. Live:
+   flag=true + no vision provider → skip message naming Gemini / llava / qwen2-vl.
+   See `docs/RESEARCH-vision-verify.md`.
 3. **`.mcstructure` export** (+ FAWE fast-paste API research).
    **✅ SHIPPED in v0.27.1** — little-endian uncompressed NBT codec (`McstructureCodec` +
    `LeNbtWriter`); ZYX indices, `-1` voids, two layers, `size` as TAG_List (not Int_Array);

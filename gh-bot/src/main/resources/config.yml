@@ -113,6 +113,12 @@ build:
   # Phase 6 — the builder
   tps-pause-threshold: 16.0     # P3: pause placement when TPS drops below this
   pause-ticks: 10               # ticks to skip when paused
+  # v0.27.2 — after staging, send the isometric preview PNG to a vision provider
+  # and (AI-generated builds only) run ONE repair pass if it disagrees.
+  # Default OFF: costs tokens, and text-only Ollama (qwen2.5, …) cannot see images.
+  # Turn on only with Gemini 2.5-flash or a multimodal Ollama (llava / qwen2-vl / minimax).
+  # Pasted JSON specs are the contract — vision may NOTE mismatches, never rewrite them.
+  verify-vision: false
 
 schematic:
   # Phase 12 — auto-save approved builds to the schematic library

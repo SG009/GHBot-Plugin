@@ -33,6 +33,7 @@ public class PluginConfig {
     private double buildTpsPause = 16.0;
     private boolean autoSaveApproved = false;
     private int buildPauseTicks = 10;
+    private boolean buildVerifyVision = false;   // v0.27.2 — opt-in vision auto-verify (default OFF)
 
     public static PluginConfig load(JavaPlugin plugin) {
         plugin.saveDefaultConfig();
@@ -77,6 +78,10 @@ public class PluginConfig {
         cfg.ai.load(c.getConfigurationSection("ai.providers"));
         cfg.buildTpsPause = c.getDouble("build.tps-pause-threshold", 16.0);
         cfg.buildPauseTicks = c.getInt("build.pause-ticks", 10);
+        // v0.27.2 — read via the build SECTION so a hyphenated key cannot be
+        // mistaken for a nested path (build.verify.vision).
+        org.bukkit.configuration.ConfigurationSection buildSec = c.getConfigurationSection("build");
+        cfg.buildVerifyVision = buildSec != null && buildSec.getBoolean("verify-vision", false);
         cfg.autoSaveApproved = c.getBoolean("schematic.auto-save-approved", false);
         return cfg;
     }
@@ -122,6 +127,7 @@ public class PluginConfig {
     public AiConfig ai() { return ai; }
     public double buildTpsPause() { return Math.max(10, buildTpsPause); }
     public int buildPauseTicks() { return Math.max(2, buildPauseTicks); }
+    public boolean buildVerifyVision() { return buildVerifyVision; }   // v0.27.2
     public boolean autoSaveApproved() { return autoSaveApproved; }
 
     /** Phase 5 — AI provider config ("nothing default": everything optional). */

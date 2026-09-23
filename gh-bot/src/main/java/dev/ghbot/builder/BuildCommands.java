@@ -66,7 +66,23 @@ public final class BuildCommands {
         registerBody(bot, bridge, builds, providers, ghosts, dataset, log);
     }
 
+    /** v0.27.2 — attach vision-verify collaborators (plugin enable + /gh reload). */
+    public static void register(GHBot bot, CommandBridge bridge, BuildService builds,
+                                ProviderRegistry providers, GhostService ghosts, LearningDataset dataset,
+                                WIBLogger log, StyleSheets styleSheets,
+                                dev.ghbot.ai.ChatService chat, dev.ghbot.config.PluginConfig cfg) {
+        attachVision(chat, cfg);
+        register(bot, bridge, builds, providers, ghosts, dataset, log, styleSheets);
+    }
+
+    public static void attachVision(dev.ghbot.ai.ChatService chat, dev.ghbot.config.PluginConfig cfg) {
+        chatHolder = chat;
+        cfgHolder = cfg;
+    }
+
     private static volatile StyleSheets stylesHolder = emptyStyles();
+    private static volatile dev.ghbot.ai.ChatService chatHolder;
+    private static volatile dev.ghbot.config.PluginConfig cfgHolder;
     private static StyleSheets styles() { return stylesHolder; }
     private static StyleSheets emptyStyles() { return dev.ghbot.builder.StyleSheets.load(null); }
 
@@ -119,6 +135,7 @@ public final class BuildCommands {
                     return;
                 }
                 ghosts.stage(b, model, spec.name, target, sender, animate);
+                maybeVisionVerify(b, providers, dataset, ghosts, sender, prompt, spec, model, target, animate, log);
             }
         }, CommandRegistry.Meta.of("Design + build in the world (stages a ghost)", "build <prompt> [--direct] [at <where>]"));
 
@@ -384,6 +401,75 @@ public final class BuildCommands {
             plog.warning("[GHBot] generateSpec: no AI provider configured (fallback) — build failed.");
         }
         return null;   // v0.21.38 — NO template fallback. Build fails clearly instead of staging a template.
+    }
+
+    /**
+     * v0.27.2 — post-stage vision checklist. Default OFF. Pasted JSON = contract
+     * (notes only). AI builds: at most ONE repair restage. Never throws.
+     */
+    static void maybeVisionVerify(GHBot b, ProviderRegistry providers, LearningDataset dataset,
+                                  GhostService ghosts, CommandSender sender, String prompt,
+                                  DesignSpec spec, VoxelModel model, Location target, boolean animate,
+                                  WIBLogger log) {
+        try {
+            if (Boolean.TRUE.equals(b.memory().get("vision-verify-done"))) {
+                b.memory().remove("vision-verify-done");
+                return;   // this staging IS the repair — do not loop
+            }
+            boolean flag = VisionVerify.enabled(cfgHolder);
+            boolean has = VisionVerify.hasVision(providers) && chatHolder != null;
+            String skip = VisionVerify.skipReason(flag, has);
+            if (log != null) log.info("[" + b.id() + "] vision-verify flag=" + flag
+                    + " hasVision=" + has + " skip=" + skip);
+            if (skip != null) {
+                String msg = VisionVerify.skipMessage(skip);
+                if (msg != null) tell(sender, log, b.id(), "§7", msg);
+                return;
+            }
+            byte[] png = dev.ghbot.web.BuildPreviewImage.render(model);
+            if (png == null) {
+                tell(sender, log, b.id(), "§7", "👁 vision verify skipped — preview image failed");
+                return;
+            }
+            boolean contract = tryParsePastedSpec(prompt) != null;
+            String summary = VisionVerify.intendedSummary(spec == null ? "" : spec.name, model);
+            String raw;
+            try {
+                raw = chatHolder.verifyPreview(png, summary);
+            } catch (Exception e) {
+                tell(sender, log, b.id(), "§7", "👁 vision verify skipped — "
+                        + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                return;
+            }
+            VisionVerify.Verdict v = VisionVerify.parse(raw);
+            if (contract || !v.needsRepair()) {
+                tell(sender, log, b.id(), null, VisionVerify.reportLine(b.id(), v, contract, false));
+                return;
+            }
+            b.memory().put("vision-verify-done", true);
+            DesignSpec spec2 = generateSpec(b, providers, dataset, VisionVerify.repairPrompt(prompt, v));
+            VoxelModel m2 = spec2 == null ? null : BuildService.toModel(spec2);
+            if (m2 == null || m2.size() == 0) {
+                b.memory().remove("vision-verify-done");
+                tell(sender, log, b.id(), null, VisionVerify.reportLine(b.id(), v, false, false));
+                return;
+            }
+            try { ghosts.clear(b, sender, false); } catch (Throwable ignored) {}
+            ghosts.stage(b, m2, spec2.name, target, sender, animate);
+            tell(sender, log, b.id(), null, VisionVerify.reportLine(b.id(), v, false, true));
+            if (log != null) log.info("[" + b.id() + "] vision verify repair restaged " + m2.size() + " blocks");
+        } catch (Throwable t) {
+            tell(sender, log, b.id(), "§7", "👁 vision verify skipped — "
+                    + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
+        }
+    }
+
+    /** v0.27.2 — console sendMessage from the HTTP/async thread is often silent; always WIB-log. */
+    private static void tell(CommandSender sender, WIBLogger log, String botId, String color, String line) {
+        String raw = line == null ? "" : line.replaceAll("§.", "");
+        String colored = (color == null) ? line : (color + "[" + botId + "] " + line);
+        try { if (sender != null && colored != null) sender.sendMessage(colored); } catch (Throwable ignored) {}
+        if (log != null && !raw.isBlank()) log.info(raw.startsWith("[") ? raw : ("[" + botId + "] " + raw));
     }
 
     /** Heuristic: a request is "complex" if it lists multiple features/materials — needs JSON for fidelity. */

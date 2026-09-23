@@ -184,7 +184,8 @@ public class GHBotPlugin extends JavaPlugin {
                 new ChatListener(registry, bridge, log, cfg.allowedPlayers()), this);
 
         long ms = System.currentTimeMillis() - t0;
-        log.info("Enabled in " + ms + "ms — " + registry.count() + " bot(s), default " + registry.defaultId());
+        log.info("Enabled in " + ms + "ms — " + registry.count() + " bot(s), default " + registry.defaultId()
+                + " · vision-verify=" + cfg.buildVerifyVision());
 
         // P16: one throttled capability notice at startup on low-spec devices
         maybeCapabilityNotice();
@@ -463,6 +464,7 @@ public class GHBotPlugin extends JavaPlugin {
             cfg = PluginConfig.load(this);
             providers.reload(cfg.ai());
             bridge.setProviders(providers);
+            dev.ghbot.builder.BuildCommands.attachVision(chatService, cfg);   // v0.27.2 — pick up verify-vision
             out.append("config.yml + AI providers ✓ (").append(providers.statusLines().size()).append(")\n");
             // 2) named locations (locations.yml)
             if (locations != null) { locations.reload(); out.append("locations.yml ✓ (").append(locations.all().size()).append(")\n"); }
@@ -527,7 +529,8 @@ public class GHBotPlugin extends JavaPlugin {
         BlockEditCommands.register(bot, bridge, editService);
         LocationCommands.register(bot, bridge, locations);
         AiCommands.register(bot, bridge, chatService);
-        BuildCommands.register(bot, bridge, buildService, providers, ghostService, dataset, log, styleSheets);
+        BuildCommands.register(bot, bridge, buildService, providers, ghostService, dataset, log, styleSheets,
+                chatService, cfg);   // v0.27.2 — vision auto-verify (opt-in)
         ReviewCommands.register(bot, bridge, ghostService);
         SchematicCommands.register(bot, bridge, schematics, ghostService, log);   // v0.21.45 — paste stages a ghost
         DatasetCommands.register(bot, bridge, schematics, dataset, downloader, ghostService, log);

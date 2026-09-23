@@ -123,6 +123,33 @@ public class ChatService {
                 + tried + "). Enable Gemini (2.5 flash supports images) or a multimodal Ollama model.");
     }
 
+    /**
+     * v0.27.2 — send a preview PNG + intended-spec summary to a vision provider
+     * and return the raw reply (checklist JSON, NOT a new build spec).
+     */
+    public String verifyPreview(byte[] png, String summary) throws Exception {
+        if (png == null || png.length < 8) throw new IllegalArgumentException("no preview png");
+        String user = dev.ghbot.builder.VisionVerify.verifyUserPrompt(summary);
+        java.util.List<String> tried = new ArrayList<>();
+        Exception last = null;
+        for (AIClient c : providers.allConfigured()) {
+            if (!c.supportsVision()) continue;
+            if (c instanceof OllamaClient oc
+                    && !dev.ghbot.builder.VisionVerify.ollamaModelLooksMultimodal(oc.model())) continue;
+            tried.add(c.id());
+            try {
+                return c.chatWithImage(dev.ghbot.builder.VisionVerify.VERIFY_SYSTEM,
+                        user, "image/png", png);
+            } catch (Exception e) {
+                last = e;
+                log.warn("[GHBot] vision verify provider " + c.id() + " failed: "
+                        + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            }
+        }
+        throw new RuntimeException("No vision-capable provider answered verify (tried: " + tried + ")"
+                + (last == null ? "" : ": " + last.getMessage()));
+    }
+
     /** v0.22.1 — exposed for the smoke suite's ShelvedSurface check (the AI prompt must never advertise shelved tools). */
     public static String systemPrompt() { return SYSTEM; }
 

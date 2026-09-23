@@ -1,22 +1,41 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) · smoke **607/607 PASS** · jar `GHBot-0.27.1.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) + v0.27.2 vision auto-verify (opt-in `build.verify-vision`, 1 repair pass, pasted JSON is the contract) · smoke **620/620 PASS** · jar `GHBot-0.27.2.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.27.1 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.27.2 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-09-23** (v0.27.1). The rest of the
+> read this section first. It is the verified truth as of **2026-09-23** (v0.27.2). The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog. The next-batch plan (v0.23→v0.27) lives in
 > `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.27.2 (Phase E item 2 — vision auto-verify loop)
+
+- **Opt-in post-stage vision checklist** (`build.verify-vision: true`, **default OFF** so we never
+  surprise-spend tokens). After a ghost is staged, GHBot renders the existing isometric PNG
+  (`BuildPreviewImage`) and asks a vision provider "does this match the intended spec?" —
+  JSON `{ok, reason, notes[]}`, **not** a redesign.
+- **1 repair pass** for AI-generated builds when `ok=false`. Pasted JSON specs are the
+  **contract** — vision may note mismatches, never rewrite them. `--direct` skips.
+  Garbage / empty vision replies never repair (keep the staged build).
+- **Honest provider gate:** Gemini 2.5-flash counts; Ollama only if the model name looks
+  multimodal (`llava`, `qwen2-vl`, `minimax`, …). `qwen2.5:0.5b` is text-only and is skipped
+  even though the HTTP transport accepts `images:[]`. No vision provider → skip message, not a fake PASS.
+- **Live-caught:** `build.verify-vision` must be read from the `build` YAML *section* (not the
+  dotted path); console `sendMessage` from the HTTP thread is silent → always WIB-log; wire
+  `attachVision` at **enable** not only `/gh reload`.
+- **Smoke 620/620** (+13). Mutations G (garbage→repair) / H (skipReason always-run) / I (repairPrompt
+  drops original) killed their pins. Live: `flag=true hasVision=false skip=no-provider` + honest skip line.
+- Write-up: `docs/RESEARCH-vision-verify.md`.
 
 ### What's new in v0.27.1 (Phase E item 3 — Bedrock `.mcstructure` export + FAWE research)
 
@@ -467,7 +486,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **607 checks**):
+2. Recompile + run the smoke suite (currently **620 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -563,7 +582,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (607 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (620 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)

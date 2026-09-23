@@ -35,6 +35,7 @@ import dev.ghbot.builder.DesignSpec;
 import dev.ghbot.builder.DesignTemplates;
 import dev.ghbot.builder.Primitives;
 import dev.ghbot.builder.VoxelModel;
+import dev.ghbot.builder.VisionVerify;
 import dev.ghbot.location.LocationStore;
 import dev.ghbot.review.GhostService;
 import dev.ghbot.review.ReviewCommands;
@@ -2707,6 +2708,85 @@ public class SmokeTest {
                 check("codecMatches: all/mcstructure/bedrock/mcs yes, nbt/schem no", false);
                 check("mcstructure codec is registered on SchematicService", false);
             }
+        }
+
+
+        // ── v0.27.2 — Phase E item 2: vision auto-verify (opt-in, 1 repair pass) ──
+        {
+            org.bukkit.configuration.file.YamlConfiguration yOff = new org.bukkit.configuration.file.YamlConfiguration();
+            yOff.loadFromString("build:\n  tps-pause-threshold: 16.0\n");
+            PluginConfig cfgOff = PluginConfig.loadFrom(yOff);
+            org.bukkit.configuration.file.YamlConfiguration yOn = new org.bukkit.configuration.file.YamlConfiguration();
+            yOn.loadFromString("build:\n  verify-vision: true\n");
+            PluginConfig cfgOn = PluginConfig.loadFrom(yOn);
+            check("build.verify-vision parses, default stays OFF (no surprise token spend)",
+                    !cfgOff.buildVerifyVision() && cfgOn.buildVerifyVision()
+                    && !VisionVerify.enabled(cfgOff) && VisionVerify.enabled(cfgOn));
+            check("vision skipReason: off is silent, no-provider is honest",
+                    "off".equals(VisionVerify.skipReason(false, true))
+                    && VisionVerify.skipMessage("off") == null
+                    && "no-provider".equals(VisionVerify.skipReason(true, false))
+                    && VisionVerify.skipMessage("no-provider").contains("llava")
+                    && VisionVerify.skipMessage("no-provider").contains("Gemini")
+                    && VisionVerify.skipReason(true, true) == null);
+            check("ollama text-only models are NOT vision for verify (qwen2.5); llava/minimax are",
+                    !VisionVerify.ollamaModelLooksMultimodal("qwen2.5:0.5b")
+                    && !VisionVerify.ollamaModelLooksMultimodal("llama3.2")
+                    && VisionVerify.ollamaModelLooksMultimodal("llava:7b")
+                    && VisionVerify.ollamaModelLooksMultimodal("qwen2-vl")
+                    && VisionVerify.ollamaModelLooksMultimodal("minimax-m3:cloud")
+                    && !VisionVerify.ollamaModelLooksMultimodal(null));
+            ProviderRegistry prEmpty = new ProviderRegistry(new PluginConfig.AiConfig());
+            check("hasVision is false on fallback-only registry",
+                    !VisionVerify.hasVision(prEmpty) && !VisionVerify.hasVision(null));
+            VoxelModel vmV = new VoxelModel();
+            vmV.set(0, 0, 0, "oak_planks");
+            vmV.set(1, 0, 0, "glass");
+            vmV.set(0, 2, 0, "oak_planks");
+            String sum = VisionVerify.intendedSummary("Hut", vmV);
+            check("intendedSummary carries name, count, bbox, palette",
+                    sum.contains("name=Hut") && sum.contains("blocks=3")
+                    && sum.contains("bbox=") && sum.contains("oak_planks") && sum.contains("glass"));
+            check("verifyUserPrompt asks for JSON-only match against the summary",
+                    VisionVerify.verifyUserPrompt(sum).contains("Hut")
+                    && VisionVerify.verifyUserPrompt(sum).contains("JSON only"));
+            VisionVerify.Verdict pass = VisionVerify.parse("{\"ok\": true, \"reason\": \"matches hut\", \"notes\": []}");
+            VisionVerify.Verdict fail = VisionVerify.parse("```json\n{\"ok\": false, \"reason\": \"no roof\", \"notes\": [\"add a cone roof\"]}\n```");
+            VisionVerify.Verdict garbage = VisionVerify.parse("sure looks fine to me");
+            VisionVerify.Verdict empty = VisionVerify.parse("  ");
+            VisionVerify.Verdict noOk = VisionVerify.parse("{\"reason\": \"hmm\"}");
+            check("vision parse: ok=true PASS", pass.parsed() && pass.ok() && !pass.needsRepair()
+                    && pass.reason().contains("matches hut"));
+            check("vision parse: fenced ok=false needs repair + notes",
+                    fail.parsed() && !fail.ok() && fail.needsRepair()
+                    && fail.reason().equals("no roof") && fail.notes().contains("add a cone roof"));
+            check("vision parse: garbage/empty/missing-ok NEVER repair (keep staged)",
+                    !garbage.parsed() && !garbage.needsRepair() && garbage.ok()
+                    && !empty.parsed() && !empty.needsRepair()
+                    && !noOk.parsed() && !noOk.needsRepair());
+            String rp = VisionVerify.repairPrompt("build a cozy hut", fail);
+            check("repairPrompt keeps the original request AND the vision reason",
+                    rp.startsWith("build a cozy hut") && rp.contains("no roof")
+                    && rp.contains("add a cone roof") && rp.contains("JSON build spec"));
+            check("reportLine: PASS / contract-notes / repaired are distinct and honest",
+                    VisionVerify.reportLine("GH000", pass, false, false).contains("PASS")
+                    && VisionVerify.reportLine("GH000", fail, true, false).contains("contract")
+                    && VisionVerify.reportLine("GH000", fail, false, true).contains("repair pass")
+                    && VisionVerify.reportLine("GH000", garbage, false, false).contains("unreadable"));
+            check("VERIFY_SYSTEM forbids a new jsonspec and blind-repair on unseen images",
+                    VisionVerify.VERIFY_SYSTEM.contains("Do NOT output a jsonspec")
+                    && VisionVerify.VERIFY_SYSTEM.contains("cannot see image"));
+            Path bcPath = Path.of("src/main/java/dev/ghbot/builder/BuildCommands.java");
+            if (!Files.exists(bcPath)) bcPath = Path.of("gh-bot/src/main/java/dev/ghbot/builder/BuildCommands.java");
+            String bcSrc = Files.exists(bcPath) ? Files.readString(bcPath) : "";
+            Path gpPathV = Path.of("src/main/java/dev/ghbot/GHBotPlugin.java");
+            if (!Files.exists(gpPathV)) gpPathV = Path.of("gh-bot/src/main/java/dev/ghbot/GHBotPlugin.java");
+            String gpSrcV = Files.exists(gpPathV) ? Files.readString(gpPathV) : "";
+            check("vision verify is wired after stage + re-attached on /gh reload (source drift guard)",
+                    bcSrc.contains("maybeVisionVerify") && bcSrc.contains("vision-verify-done")
+                    && bcSrc.contains("tell(sender, log")
+                    && gpSrcV.contains("attachVision(chatService, cfg)")
+                    && gpSrcV.contains("chatService, cfg"));
         }
 
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")

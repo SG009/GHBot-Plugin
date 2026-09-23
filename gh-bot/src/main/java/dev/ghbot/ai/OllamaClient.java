@@ -120,6 +120,8 @@ public class OllamaClient implements AIClient {
     @Override public String id() { return "ollama"; }
     @Override public String displayName() { return "Ollama (" + model + ")"; }
     @Override public boolean isConfigured() { return enabled; }
+    /** v0.27.2 — model id, so vision-verify can skip text-only names (qwen2.5, …). */
+    public String model() { return model; }
 
     /** v0.21.40 — Ollama native /api/chat accepts an "images": [base64] array for
      *  multimodal models (llava, minicpm-v, minimax-m3 …). Uses JSON mode + temp 0
