@@ -51,6 +51,7 @@
   .fname b{color:var(--foreground);font-weight:600}
   .statusdot{width:8px;height:8px;border-radius:50%;background:#f5b64d;display:inline-block;margin-right:2px}
   .reviewbtn{border:1px solid var(--border);background:rgba(21,21,15,.92);color:var(--foreground);border-radius:.5rem;padding:6px 12px;font-size:12px;font-weight:600;font-family:var(--font-sans);cursor:pointer;backdrop-filter:blur(8px);transition:background .15s;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+  .scanlabel{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:rgba(21,21,15,.92);color:var(--foreground);border-radius:.5rem;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;backdrop-filter:blur(8px)}
   .reviewbtn:hover{background:var(--muted)}
   .reviewbtn.ok{background:var(--primary);color:var(--primary-foreground);border-color:transparent}
   .reviewbtn.ok:hover{background:var(--ring)}
@@ -175,6 +176,7 @@
     </div>
     <div id="topR">
       <span class="statusdot" id="statusDot"></span>
+      <label class="scanlabel" title="Show the last terrain scan (Phase C eyes)"><input type="checkbox" id="scanToggle" onchange="toggleScan(this.checked)"> scan</label>
       <button class="reviewbtn" id="btnExport">Export</button>
       <button class="reviewbtn danger" id="btnDeny">Deny</button>
       <button class="reviewbtn ok" id="btnApprove">Approve</button>
@@ -1001,6 +1003,36 @@ function toast(m){toastEl.textContent=m;toastEl.classList.add("show");clearTimeo
 
 /* init */
 loadModel();
+/* ── v0.25.0 — Phase C scan layer: render the last terrain scan with the SAME
+     renderer (columns as voxels, real proportions) so the owner can visually
+     verify the bot measured the right area before approving anything. ── */
+let scanBackup=null;
+async function toggleScan(on){
+  const tgl=document.getElementById('scanToggle');
+  if(on){
+    try{
+      const r=await fetch('/api/scan/last');
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      if(!scanBackup) scanBackup=new Map(model);
+      model.clear();
+      (d.blocks||[]).forEach(b=>set(b.x,b.y,b.z,b.name||b.block));
+      rebuildModel();
+      target={x:0,y:(blocks.length?(minY+maxY)/2:0),z:0};
+      toast('Scan layer: '+(d.name||'scan')+' · '+(d.blocks||[]).length+' columns');
+    }catch(e){
+      if(tgl) tgl.checked=false;
+      toast('No scan yet — run `scan <radius>` first');
+    }
+  }else if(scanBackup){
+    model.clear();
+    scanBackup.forEach((v,k)=>model.set(k,v));
+    scanBackup=null;
+    rebuildModel();
+    target={x:0,y:(minY+maxY)/2,z:0};
+  }
+}
+
 setMode("orbit");
 loadJob();
 (function loop(t){

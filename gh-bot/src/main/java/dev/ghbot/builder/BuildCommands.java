@@ -55,6 +55,24 @@ public final class BuildCommands {
     public static void register(GHBot bot, CommandBridge bridge, BuildService builds,
                                 ProviderRegistry providers, GhostService ghosts, LearningDataset dataset,
                                 WIBLogger log) {
+        register(bot, bridge, builds, providers, ghosts, dataset, log, emptyStyles());
+    }
+
+    /** v0.25.0 — Phase C: StyleSheets-aware registration (styles flow into generateSpec). */
+    public static void register(GHBot bot, CommandBridge bridge, BuildService builds,
+                                ProviderRegistry providers, GhostService ghosts, LearningDataset dataset,
+                                WIBLogger log, StyleSheets styleSheets) {
+        stylesHolder = styleSheets == null ? emptyStyles() : styleSheets;
+        registerBody(bot, bridge, builds, providers, ghosts, dataset, log);
+    }
+
+    private static volatile StyleSheets stylesHolder = emptyStyles();
+    private static StyleSheets styles() { return stylesHolder; }
+    private static StyleSheets emptyStyles() { return dev.ghbot.builder.StyleSheets.load(null); }
+
+    private static void registerBody(GHBot bot, CommandBridge bridge, BuildService builds,
+                                ProviderRegistry providers, GhostService ghosts, LearningDataset dataset,
+                                WIBLogger log) {
         CommandRegistry r = bridge.registryOf(bot);
 
         r.register("build", (b, ctx) -> {
@@ -159,8 +177,138 @@ public final class BuildCommands {
         return null;
     }
 
+    /* ── v0.25.0 — Phase C "Good-Result Grade" pack: statics (headless-pinned) ── */
+
+    /** Reference-prompt builder: GOLD exemplars verbatim (schema imitation),
+     *  dataset compactLines (proportions/materials), style-sheet rules — then
+     *  the user request. Pure: SmokeTest pins composition. */
+    public static String buildReferencePrompt(String prompt,
+            java.util.List<dev.ghbot.schematic.LearningSample> refs, StyleSheets styles) {
+        if (prompt == null) prompt = "";
+        StringBuilder sb = new StringBuilder();
+        int goldBudget = 2400;
+        for (var s : refs) {
+            if (s.goldSpec != null && !s.goldSpec.isEmpty() && goldBudget > 200) {
+                String g = s.goldSpec.length() > goldBudget ? s.goldSpec.substring(0, goldBudget) : s.goldSpec;
+                sb.append("GOLD EXAMPLE jsonspec (\"").append(s.name)
+                  .append("\") — imitate its EXACT schema and op usage (do NOT copy the design):\n")
+                  .append(g).append("\n\n");
+                goldBudget -= g.length();
+            }
+        }
+        if (!refs.isEmpty()) {
+            sb.append("Reference builds from my dataset — match their proportions, materials and density "
+                    + "(do NOT copy them exactly):");
+            for (var s : refs) sb.append("\n- ").append(s.compactLine());
+            sb.append('\n');
+        }
+        if (styles != null) {
+            String st = styles.inject(prompt);
+            if (!st.isEmpty()) sb.append(st).append('\n');
+        }
+        if (sb.length() > 0) sb.append("User request: ").append(prompt);
+        return sb.length() > 0 ? sb.toString() : prompt;
+    }
+
+    /** Two-pass pass-1: a tiny PLAN any free model nails (no voxels yet). */
+    static String planPrompt(String prompt) {
+        return "Plan a Minecraft build as SMALL JSON (no voxels, no markdown): "
+                + "{\"name\":string,\"style\":string,\"footprint\":{\"w\":int,\"h\":int,\"d\":int},"
+                + "\"palette\":[block,...],\"parts\":[{\"name\":string,\"what\":string},max 4 entries]}\n"
+                + "Request: " + prompt;
+    }
+
+    /** Parts from the plan JSON (records {name,what} or bare strings; ≤4). SnakeYAML parses JSON fine. */
+    public static java.util.List<String> parseParts(String planText) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (planText == null) return out;
+        int start = planText.indexOf('{');
+        int end = planText.lastIndexOf('}');
+        if (start < 0 || end <= start) return out;
+        try {
+            Object doc = new org.yaml.snakeyaml.Yaml().load(planText.substring(start, end + 1));
+            if (!(doc instanceof java.util.Map<?, ?> m)) return out;
+            Object parts = m.get("parts");
+            if (!(parts instanceof java.util.List<?> pl)) return out;
+            for (Object o : pl) {
+                if (out.size() >= 4) break;
+                if (o instanceof java.util.Map<?, ?> pm && pm.get("name") != null) {
+                    out.add(String.valueOf(pm.get("name")));
+                } else if (o != null) out.add(String.valueOf(o));
+            }
+        } catch (Throwable ignored) {}
+        return out;
+    }
+
+    /** Two-pass pass-2: jsonspec for ONE part, validated by parseWithDiagnostics. */
+    public static String partPrompt(String planText, String part, int maxBlocks) {
+        return "Now emit ONLY the JSON build spec (no markdown) for THIS ONE PART of the build: \"" + part + "\".\n"
+                + "Schema: {\"name\":\"...\",\"palette\":{\"0\":\"minecraft:block\"},"
+                + "\"blocks\":[{\"x\":int,\"y\":int,\"z\":int,\"block\":\"palette-id-or-name\"},...]}\n"
+                + "Coords relative to the build origin; part block budget ≤ " + maxBlocks
+                + "; include EVERY block of this part.\n"
+                + "Plan context: " + (planText == null ? "" : planText.replaceAll("\\s+", " ").trim());
+    }
+
+    /** The ONE auto-retry: feed the validator's diagnostics back (proven pattern from vision). */
+    public static String feedbackPrompt(String part, java.util.List<String> diagnostics) {
+        String first = diagnostics == null || diagnostics.isEmpty() ? "invalid JSON spec" : diagnostics.get(0);
+        return "Your JSON for part \"" + part + "\" was rejected by the validator: " + first
+                + "\nFix ONLY that and re-emit the corrected JSON build spec (no markdown, no apology).";
+    }
+
+    /** Merge per-part jsonspecs into one DesignSpec (name carries the partial-truth note). */
+    public static DesignSpec mergeJsonSpecs(String name, java.util.List<JsonBuildSpec> parts, int dropped) {
+        DesignSpec s = new DesignSpec();
+        s.name = name + (dropped > 0 ? " (partial: " + dropped + " part(s) dropped)" : "");
+        s.style = "json-exact-two-pass";
+        for (JsonBuildSpec j : parts) {
+            DesignSpec dj = DesignSpec.fromJson(j);
+            for (String pal : dj.palette) if (!s.palette.contains(pal)) s.palette.add(pal);
+            s.ops.addAll(dj.ops);
+        }
+        return s;
+    }
+
+    /** Two-pass generation (Phase C): plan → per-part jsonspec, validated + one retry.
+     *  Returns null when unusable — the caller keeps today's single-shot fallback. */
+    private static DesignSpec twoPassJson(AIClient client, String prompt, java.util.logging.Logger plog) {
+        try {
+            String plan = client.chat(SPEC_SYSTEM, List.of(new AIClient.ChatMessage("user", planPrompt(prompt))));
+            var parts = parseParts(plan);
+            if (parts.isEmpty()) {
+                plog.info("[GHBot] two-pass: plan carried no parts — single-shot fallback");
+                return null;
+            }
+            java.util.List<JsonBuildSpec> ok = new java.util.ArrayList<>();
+            int dropped = 0;
+            for (String part : parts) {
+                String jt = client.chat(SPEC_SYSTEM, List.of(new AIClient.ChatMessage("user", partPrompt(plan, part, 800))));
+                var pr = JsonBuildSpec.parseWithDiagnostics(jt);
+                if (pr.spec() == null || !pr.spec().isValid()) {
+                    String fb = client.chat(SPEC_SYSTEM,
+                            List.of(new AIClient.ChatMessage("user", feedbackPrompt(part, pr.diagnostics()))));
+                    pr = JsonBuildSpec.parseWithDiagnostics(fb);
+                }
+                if (pr.spec() != null && pr.spec().isValid()) {
+                    ok.add(pr.spec());
+                } else {
+                    dropped++;
+                    plog.warning("[GHBot] two-pass: part \"" + part + "\" dropped after retry ("
+                            + (pr.diagnostics().isEmpty() ? "invalid" : pr.diagnostics().get(0)) + ")");
+                }
+            }
+            if (ok.isEmpty()) return null;
+            return mergeJsonSpecs("two-pass build", ok, dropped);
+        } catch (Exception e) {
+            plog.warning("[GHBot] two-pass failed: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            return null;
+        }
+    }
+
     private static DesignSpec generateSpec(GHBot bot, ProviderRegistry providers,
                                            LearningDataset dataset, String prompt) {
+        StyleSheets styles = styles();
         java.util.logging.Logger plog = org.bukkit.Bukkit.getLogger();
         DesignSpec pasted = tryParsePastedSpec(prompt);
         if (pasted != null) {
@@ -171,18 +319,11 @@ public final class BuildCommands {
         AIClient client = providers.resolve(bot);
         if (!client.id().equals("fallback")) {
             try {
-                String userPrompt = prompt;
-                if (dataset != null && dataset.size() > 0) {
-                    var refs = dataset.retrieve(prompt, 3);
-                    if (!refs.isEmpty()) {
-                        StringBuilder ref = new StringBuilder(
-                                "Reference builds from my dataset — match their proportions, materials and density "
-                                + "(do NOT copy them exactly):");
-                        for (var s : refs) ref.append("\n- ").append(s.compactLine());
-                        ref.append("\nUser request: ").append(prompt);
-                        userPrompt = ref.toString();
-                    }
-                }
+                String userPrompt = buildReferencePrompt(prompt,
+                        dataset == null || dataset.size() == 0
+                                ? java.util.List.<dev.ghbot.schematic.LearningSample>of()
+                                : dataset.retrieve(prompt, 3),
+                        styles);
                 // v0.21.36/38 — Ollama constrained JSON + temperature 0 (deterministic, schema-adherent)
                 if (client instanceof dev.ghbot.ai.OllamaClient oc) { oc.setJsonMode(true); oc.setTempZero(true); }
                 String specText;
@@ -200,6 +341,12 @@ public final class BuildCommands {
                 DesignSpec spec = DesignSpec.parse(specText);
                 // v0.21.37 — complex request: DON'T accept weak primitives. Force JSON spec explicitly.
                 if (isComplex(prompt)) {
+                    // v0.25.0 — Phase C: TWO-PASS first (plan → per-part validated jsonspec,
+                    // one feedback retry each); weakest free models can no longer break the
+                    // whole build with one bad completion. Single-shot stays as the net.
+                    DesignSpec two = twoPassJson(client, prompt, plog);
+                    if (two != null && two.isValid()) return two;
+                    plog.info("[GHBot] two-pass unavailable — using single-shot force-JSON path");
                     // v0.21.38 — research: the schema MUST be in the prompt (not just format:json),
                     // + temperature 0 + a concrete example → weak models produce correct JSON.
                     String forceJson = "You MUST output ONLY a JSON build spec in EXACTLY this schema:\n"

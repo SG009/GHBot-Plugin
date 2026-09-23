@@ -66,6 +66,14 @@ public final class AutoTools {
                     upd ? "audit updates" : "audit");
         }
 
+        // ── set (v0.25.0): "set|place <block> at x y z" — strict coords-only so
+        //    "add diamond above the dirt at 0 -1 0" still reaches the AI (look-then-set) ──
+        Matcher ms = Pattern.compile("^(?:set|place)\\s+(?:a\\s+|an\\s+|the\\s+)?([a-z0-9_:]+?)(?:\\s+block)?\\s+at\\s+(-?\\d+)[,\\s]+(-?\\d+)[,\\s]+(-?\\d+)$").matcher(low);
+        if (ms.find()) {
+            return new Call("set", new String[]{ms.group(1), "at", ms.group(2), ms.group(3), ms.group(4)},
+                    "set " + ms.group(1) + " at " + ms.group(2) + " " + ms.group(3) + " " + ms.group(4));
+        }
+
         // ── find: "find <block> [radius]" ──
         Matcher mf = Pattern.compile("find\\s+([a-z0-9_:]+)(?:\\s+(\\d+))?").matcher(low);
         if (low.startsWith("find") && mf.find()) {

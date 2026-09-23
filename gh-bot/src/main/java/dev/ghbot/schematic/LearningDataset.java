@@ -82,6 +82,7 @@ public class LearningDataset {
                 y.set(base + "blocks", s.blocks);
                 y.set(base + "structure", s.structure);
                 y.set(base + "source-url", s.sourceUrl);
+                if (s.goldSpec != null && !s.goldSpec.isEmpty()) y.set(base + "gold-spec", s.goldSpec);
                 Map<String, Object> pal = new LinkedHashMap<>();
                 s.palette.forEach((k, v) -> pal.put(k, v));
                 y.set(base + "palette", pal);
@@ -116,6 +117,7 @@ public class LearningDataset {
                 s.blocks = y.getInt(base + "blocks");
                 s.structure = y.getString(base + "structure", "unknown");
                 s.sourceUrl = y.getString(base + "source-url", "");
+                s.goldSpec = y.getString(base + "gold-spec", "");
                 Object pal = y.get(base + "palette");
                 if (pal instanceof Map<?, ?> m) {
                     m.forEach((k, v) -> s.palette.put(String.valueOf(k), v instanceof Number n ? n.intValue() : 0));

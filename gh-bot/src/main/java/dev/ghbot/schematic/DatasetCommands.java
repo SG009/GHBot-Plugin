@@ -107,14 +107,20 @@ public final class DatasetCommands {
             }
             String name = ctx.args()[0];
             boolean fromStaged = ctx.args().length >= 2 && ctx.args()[1].equalsIgnoreCase("staged");
+            // v0.25.0 — `teach <name> [staged] gold` marks a gold exemplar (Phase C)
+            boolean gold = java.util.Arrays.stream(ctx.args()).anyMatch(a -> a.equalsIgnoreCase("gold"));
             try {
                 if (fromStaged && ghosts != null && ghosts.staged(b) != null) {
                     var st = ghosts.staged(b);
                     LearningSample s = LearningSample.from(st.model, name, name + ".schem", "sponge");
                     s.sourceUrl = "staged:" + st.specName;
+                    String goldNote = "";
+                    if (gold) {
+                        goldNote = goldNote(s, st.model);
+                    }
                     dataset.add(s);
                     ctx.sender().sendMessage("§a[" + b.id() + "] Taught §f" + name + "§a from the staged build ("
-                            + s.blocks + " blocks) → dataset (" + dataset.size() + ").");
+                            + s.blocks + " blocks) → dataset (" + dataset.size() + ")." + goldNote);
                 } else {
                     // v0.21.8: accept a bare name OR a full filename with extension.
                     String base = name.replaceAll("(?i)\\.(schem|schematic|litematic|nbt)$", "");
@@ -130,14 +136,15 @@ public final class DatasetCommands {
                     if (model == null) { ctx.sender().sendMessage("§cCouldn't parse " + f.getFileName()); return; }
                     LearningSample s = LearningSample.from(model, base, f.getFileName().toString(),
                             f.getFileName().toString().endsWith(".litematic") ? "litematic" : "sponge");
+                    String goldNote = gold ? goldNote(s, model) : "";
                     dataset.add(s);
                     ctx.sender().sendMessage("§a[" + b.id() + "] Taught §f" + base + "§a from " + f.getFileName()
-                            + " → dataset (" + dataset.size() + ").");
+                            + " → dataset (" + dataset.size() + ")." + goldNote);
                 }
             } catch (Exception e) {
                 ctx.sender().sendMessage("§cTeach failed: " + e.getMessage());
             }
-        }, CommandRegistry.Meta.of("Add a library file or staged build to the learning dataset", "teach <name> [staged]"));
+        }, CommandRegistry.Meta.of("Add a library file or staged build to the learning dataset (`gold` = few-shot exemplar, ≤80 blocks)", "teach <name> [staged] [gold]"));
 
         // ── dataset ──
         r.register("dataset", (b, ctx) -> {
@@ -149,7 +156,9 @@ public final class DatasetCommands {
                 }
                 StringBuilder sb = new StringBuilder("§e[" + b.id() + "] Learning dataset (" + dataset.size() + "):");
                 for (LearningSample s : dataset.all()) {
-                    sb.append("\n§f- §a").append(s.name).append("§7  ").append(s.oneLine());
+                    sb.append("\n§f- §a").append(s.name)
+                      .append(s.goldSpec != null && !s.goldSpec.isEmpty() ? " §6[gold]" : "")
+                      .append("§7  ").append(s.oneLine());
                 }
                 ctx.sender().sendMessage(sb.toString());
                 return;
@@ -190,5 +199,16 @@ public final class DatasetCommands {
             if (Files.exists(f)) return f;
         }
         return null;
+    }
+
+    /** v0.25.0 — gold marking shared by both teach paths; NEVER lies about the result. */
+    private static String goldNote(LearningSample s, dev.ghbot.builder.VoxelModel model) {
+        String g = LearningSample.synthGold(model, 80);
+        if (g == null) {
+            return " §8(gold skipped — gold exemplars need 1–80 blocks, this model has "
+                    + (model == null ? 0 : model.size()) + ")";
+        }
+        s.goldSpec = g;
+        return " §6[gold exemplar — will be injected verbatim into future build prompts]";
     }
 }

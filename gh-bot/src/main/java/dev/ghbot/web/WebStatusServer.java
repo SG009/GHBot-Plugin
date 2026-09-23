@@ -280,6 +280,7 @@ public class WebStatusServer {
         server.createContext("/upload", guard(this::handleUpload));   // v0.21.40 — upload JSON build spec or image
         server.createContext("/api/events", guard(this::handleApiEvents));   // v0.21.42 — review-activity feed
         server.createContext("/api/cancel", guard(this::handleApiCancel));   // v0.21.44 — Stop button
+        server.createContext("/api/scan/last", guard(this::handleApiScanLast)); // v0.25.0 — Phase C viewer scan layer
     }
 
     /* ── /api/cancel?session=<key> — v0.21.44: Stop button. Aborts the in-flight AI
@@ -508,6 +509,18 @@ public class WebStatusServer {
     }
 
     /* ── /api/status JSON for the console sidebar ── */
+    /* v0.25.0 — Phase C: the last terrain scan as viewer-ready JSON (the
+     * "scan" toggle in the 3D viewer renders it with the build renderer, so
+     * the owner can visually verify the bot measured the right area). */
+    private void handleApiScanLast(HttpExchange ex) throws IOException {
+        String json = dev.ghbot.terrain.ScanFeed.toJson(
+                dev.ghbot.terrain.TerrainCommands.LAST_SCAN,
+                dev.ghbot.terrain.TerrainCommands.LAST_ORIGIN,
+                dev.ghbot.terrain.TerrainCommands.LAST_RADIUS);
+        if (json == null) { respond(ex, 404, "{\"error\":\"no scan yet — run `scan <radius>` first\"}"); return; }
+        respond(ex, 200, json, "application/json; charset=utf-8");
+    }
+
     private void handleApiStatus(HttpExchange ex) throws IOException {
         StringBuilder sb = new StringBuilder("{");
         if (jsonStats != null) {

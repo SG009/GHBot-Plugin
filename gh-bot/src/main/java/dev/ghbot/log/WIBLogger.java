@@ -134,6 +134,23 @@ public final class WIBLogger {
      * chat/AI context. Returns the file name written ("logs/cmd/<safe>.log"), or
      * null on failure.
      */
+    /** v0.25.0 — write a full scan lattice (Phase C eyes) to logs/scan/<name>.log.
+     *  Full fidelity on disk; the chat/AI surface gets the budget-capped lattice. */
+    public String writeScanGrid(String text) {
+        try {
+            java.nio.file.Path dir = chatLogFile.getParent().resolve("scan");
+            Files.createDirectories(dir);
+            String safe = "grid-" + (System.currentTimeMillis() / 1000L);
+            java.nio.file.Path f = dir.resolve(safe + ".log");
+            Files.writeString(f, text + System.lineSeparator(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            return "logs/scan/" + safe + ".log";
+        } catch (IOException e) {
+            logger.warning("Could not write scan grid: " + e.getMessage());
+            return null;
+        }
+    }
+
     public String writeCmdOutput(String fileName, String text) {
         try {
             java.nio.file.Path dir = chatLogFile.getParent().resolve("cmd");

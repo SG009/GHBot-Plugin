@@ -1022,7 +1022,8 @@ public class SmokeTest {
         // v0.21.8 — teach accepts a full filename with extension (barn.litematic etc.)
         s.clear();
         bridge.dispatch(def, s, "teach", new String[]{"testbuild.schem"});
-        check("shelved teach blocked", s.last().contains("shelved"));
+        check("teach revived dispatches (no shelved block) — v0.25.0 Phase C",
+                !s.last().contains("shelved"));
 
         // 8u) Phase 9b + 16 — web chat + toggles
         // (reload registry to empty so web-chat tests use the instant rule-based fallback,
@@ -1263,12 +1264,12 @@ public class SmokeTest {
                 java.util.Set.of("build","plan","edit","paste","export","approve","deny","redo",
                         "scan","find","look","set","replace","terraform","undo",
                         "admin","cmd","status","cap","device-info","provider","refresh","confirm","chat","view","cancel","library","schem")));
-        check("v0.22 catalog drops shelved", java.util.Arrays.stream(new String[]{
+        check("v0.22 catalog drops shelved (teach/dataset revived v0.25.0)", java.util.Arrays.stream(new String[]{
                 "avatar","marker","workers","deploy","undeploy","where","save-location",
-                "list-locations","delete-location","teach","dataset","critique","design",
+                "list-locations","delete-location","critique","design",
                 "image","memory","debuglog","animate","add","editspec"}).noneMatch(catNames::contains));
         check("v0.22 SHELVED set populated", dev.ghbot.command.BotCommands.SHELVED.containsAll(
-                java.util.Set.of("avatar","workers","where","teach","critique","deploy")));
+                java.util.Set.of("avatar","workers","where","critique","deploy")));
         s.clear();
         bridge.dispatch(def, s, "workers", new String[0]);
         check("v0.22 shelved dispatch blocked", s.last().contains("shelved"));
@@ -1771,7 +1772,8 @@ public class SmokeTest {
         // "where", "image") that legitimately appear in unrelated sentences.
         String[] unambiguous = {"save-location", "list-locations", "delete-location",
                 "schem download", "workers", "deploy", "undeploy", "avatar", "marker",
-                "critique", "dataset", "teach", "editspec", "debuglog", "animate"};
+                "critique", "editspec", "debuglog", "animate"};
+        // v0.25.0 — teach + dataset are INTENTIONALLY advertised again (Phase C revival).
         for (String name : unambiguous) {
             if (sysPrompt.matches("(?s).*\\b" + java.util.regex.Pattern.quote(name) + "\\b.*")
                     || capGuide.matches("(?s).*\\b" + java.util.regex.Pattern.quote(name) + "\\b.*")) {
@@ -2181,6 +2183,163 @@ public class SmokeTest {
                     && aud2 != null && aud2.name().equals("audit")
                     && aud3 != null && aud3.name().equals("audit")
                     && aud3.args().length == 1 && aud3.args()[0].equals("updates"));
+        }
+        // (4e) v0.25.0 — Phase C: eyes lattice + set precision loop + Good-Result pack
+        {
+            // ── lattice tiers, sampling, budget cap ──
+            check("scan stride tiers (≤8 / 9–32 / >32)",
+                    dev.ghbot.terrain.TerrainScanner.TerrainSummary.strideForRadius(4) == 1
+                    && dev.ghbot.terrain.TerrainScanner.TerrainSummary.strideForRadius(8) == 1
+                    && dev.ghbot.terrain.TerrainScanner.TerrainSummary.strideForRadius(9) == 2
+                    && dev.ghbot.terrain.TerrainScanner.TerrainSummary.strideForRadius(32) == 2
+                    && dev.ghbot.terrain.TerrainScanner.TerrainSummary.strideForRadius(33) == 0);
+            var tsum = new dev.ghbot.terrain.TerrainScanner.TerrainSummary();
+            tsum.minX = -4; tsum.maxX = 4; tsum.minZ = -4; tsum.maxZ = 4;
+            tsum.minY = -64; tsum.maxY = 320; tsum.surfaceMin = 10; tsum.surfaceMax = 10;
+            for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
+                tsum.heightmap.put(tsum.heightmapKey(x, z), 10);
+                tsum.topMaterials.put(tsum.heightmapKey(x, z), "grass_block");
+            }
+            check("lattice full grid carries every column (r=4 → 81)",
+                    tsum.latticeLines().size() == 81
+                    && tsum.latticeText(4096).contains("0,0: 10 grass_block")
+                    && tsum.latticeText(4096).contains("-4,-4: 10 grass_block"));
+            String capped = tsum.latticeText(120);
+            check("lattice budget cap marks the trim truthfully",
+                    capped.contains("column(s) trimmed") && capped.length() <= 134);
+            var tsum2 = new dev.ghbot.terrain.TerrainScanner.TerrainSummary();
+            tsum2.minX = -10; tsum2.maxX = 10; tsum2.minZ = -10; tsum2.maxZ = 10;
+            tsum2.surfaceMin = 5; tsum2.surfaceMax = 5;
+            for (int x = -10; x <= 10; x++) for (int z = -10; z <= 10; z++) {
+                tsum2.heightmap.put(tsum2.heightmapKey(x, z), 5);
+                tsum2.topMaterials.put(tsum2.heightmapKey(x, z), "stone");
+            }
+            var lines2 = tsum2.latticeLines();
+            check("lattice r=10 samples every 2nd column, keeps exact center",
+                    lines2.contains("0,0: 5 stone") && lines2.contains("-10,-10: 5 stone")
+                    && !lines2.contains("1,1: 5 stone") && lines2.size() < 150);
+            var tsum3 = new dev.ghbot.terrain.TerrainScanner.TerrainSummary();
+            tsum3.minX = -40; tsum3.maxX = 40; tsum3.minZ = -40; tsum3.maxZ = 40;
+            tsum3.heightmap.put(tsum3.heightmapKey(0, 0), 64);
+            check("lattice r>32 stays counts-only (empty text)", tsum3.latticeText(1500).isEmpty());
+
+            // v0.25.0 — the AI/AutoTool scan surface must compose through the
+            // SAME helper as the registry command (live-caught drift: the tool
+            // path answered toLine-only — no lattice, no viewer feed).
+            dev.ghbot.terrain.TerrainCommands.LAST_SCAN = null;
+            String tsr = dev.ghbot.terrain.TerrainCommands.toolScanReply(tsum,
+                    new org.bukkit.Location(null, 0, 64, 0), 4, null);
+            check("toolScanReply: lattice + LAST_SCAN for the AI/tool surface",
+                    tsr.contains("0,0: 10 grass_block") && tsr.contains(tsum.toLine())
+                    && dev.ghbot.terrain.TerrainCommands.LAST_SCAN == tsum
+                    && dev.ghbot.terrain.TerrainCommands.LAST_RADIUS == 4);
+            Path gpPath = Path.of("src/main/java/dev/ghbot/GHBotPlugin.java");
+            if (!Files.exists(gpPath)) gpPath = Path.of("gh-bot/src/main/java/dev/ghbot/GHBotPlugin.java");
+            boolean gpDelegates = Files.exists(gpPath)
+                    && Files.readString(gpPath).contains("TerrainCommands.toolScanReply");
+            check("scan tool surface composes via shared toolScanReply (drift guard)", gpDelegates);
+
+            // ── web scan feed ──
+            String sfJson = dev.ghbot.terrain.ScanFeed.toJson(tsum, new int[]{0, -1, 0}, 4);
+            check("scan feed serves origin/radius + rebased voxels",
+                    sfJson != null && sfJson.contains("\"radius\":4")
+                    && sfJson.contains("\"origin\":[0,-1,0]")
+                    && sfJson.contains("{\"x\":0,\"y\":0,\"z\":0,\"name\":\"grass_block\"}")
+                    && dev.ghbot.terrain.ScanFeed.toJson(null, new int[]{0, 0, 0}, 4) == null);
+
+            // ── set precision loop: AUTO-TOOL + prompt + catalog ──
+            var setc = dev.ghbot.agent.AutoTools.detect("set diamond_block at 0 -1 0");
+            var setc2 = dev.ghbot.agent.AutoTools.detect("place torch at 5, 64, 5");
+            check("AUTO-TOOL strict set routes with exact coords",
+                    setc != null && setc.name().equals("set")
+                    && setc.args().length == 5 && setc.args()[0].equals("diamond_block")
+                    && setc.args()[3].equals("-1")
+                    && setc.display().equals("set diamond_block at 0 -1 0")
+                    && setc2 != null && setc2.name().equals("set"));
+            check("add-above-ask reaches the AI (no AUTO-TOOL theft)",
+                    dev.ghbot.agent.AutoTools.detect("add diamond block above the dirt block at 0 -1 0") == null);
+            String sp = dev.ghbot.ai.ChatService.systemPrompt();
+            check("prompt teaches the look-then-set precision loop",
+                    sp.contains("look-then-set") && sp.contains("/setblock")
+                    && sp.contains("x,z: y material") && sp.contains("teach, dataset"));
+            check("catalog: set usage matches the parser + teach/dataset revived",
+                    dev.ghbot.command.BotCommands.toolSheet().contains("set <block> at <x y z|here|me>")
+                    && dev.ghbot.command.BotCommands.toolSheet().contains("teach <name> [staged] [gold]")
+                    && !dev.ghbot.command.BotCommands.SHELVED.contains("teach")
+                    && !dev.ghbot.command.BotCommands.SHELVED.contains("dataset"));
+
+            // ── gold exemplars ──
+            VoxelModel gm = new VoxelModel();
+            for (int i = 0; i < 9; i++) gm.set(i % 3, 0, i / 3, i % 2 == 0 ? "stone_bricks" : "oak_planks");
+            String gold = dev.ghbot.schematic.LearningSample.synthGold(gm, 80);
+            dev.ghbot.builder.JsonBuildSpec goldParsed = gold == null ? null : dev.ghbot.builder.JsonBuildSpec.parse(gold);
+            check("gold synth round-trips as a valid jsonspec",
+                    gold != null && goldParsed != null && goldParsed.isValid()
+                    && goldParsed.blocks.size() == 9 && goldParsed.palette.size() == 2);
+            VoxelModel goldBig = new VoxelModel();
+            for (int i = 0; i < 81; i++) goldBig.set(i, 0, 0, "stone");
+            check("gold synth rejects empty/oversized models",
+                    dev.ghbot.schematic.LearningSample.synthGold(goldBig, 80) == null
+                    && dev.ghbot.schematic.LearningSample.synthGold(new VoxelModel(), 80) == null);
+            java.nio.file.Path dsDir = java.nio.file.Files.createTempDirectory("ghds");
+            var dsLog = new dev.ghbot.log.WIBLogger(java.util.logging.Logger.getLogger("smoke"), dsDir, false);
+            var ds = new dev.ghbot.schematic.LearningDataset(dsDir, dsLog);
+            dev.ghbot.schematic.LearningSample samp = new dev.ghbot.schematic.LearningSample();
+            samp.name = "gold-hut"; samp.goldSpec = gold;
+            ds.add(samp);
+            var ds2 = new dev.ghbot.schematic.LearningDataset(dsDir, dsLog);
+            check("dataset persists goldSpec across reload",
+                    ds2.size() == 1 && ds2.all().get(0).goldSpec.equals(gold));
+
+            // ── style sheets ──
+            String stylesYaml = "styles:\n  abandoned:\n    match: [abandoned, ruined]\n"
+                    + "    palette: [mossy_stone_bricks]\n    rules:\n      - remove 15% of wall blocks\n";
+            var sss = dev.ghbot.builder.StyleSheets.fromString(stylesYaml);
+            check("style sheet match + inject",
+                    sss.size() == 1 && sss.match("build an abandoned outpost") != null
+                    && sss.match("a modern flat house") == null
+                    && sss.inject("build an abandoned outpost").contains("mossy_stone_bricks")
+                    && sss.inject("build an abandoned outpost").contains("remove 15%")
+                    && sss.inject("unrelated build").isEmpty());
+            try (var rin = dev.ghbot.builder.StyleSheets.class.getResourceAsStream("/styles.yml")) {
+                var defStyles = dev.ghbot.builder.StyleSheets.fromString(new String(rin.readAllBytes()));
+                check("bundled default styles.yml has the abandoned ruin recipe",
+                        defStyles.size() >= 4
+                        && defStyles.match("build an abandoned outpost") != null
+                        && defStyles.inject("build an abandoned outpost").contains("mossy_stone_bricks")
+                        && defStyles.inject("abandoned tower").contains("15%"));
+            }
+
+            // ── reference prompt composition + two-pass pure parts ──
+            var rp = dev.ghbot.builder.BuildCommands.buildReferencePrompt(
+                    "build an abandoned outpost", java.util.List.of(samp), sss);
+            check("reference prompt: gold verbatim + compactLine + style + request",
+                    rp.contains("GOLD EXAMPLE") && rp.contains(goldParsed.palette.get("0"))
+                    && rp.contains("gold-hut") && rp.contains("Style sheet \"abandoned\"")
+                    && rp.endsWith("User request: build an abandoned outpost"));
+            check("reference prompt with nothing stays the bare prompt",
+                    dev.ghbot.builder.BuildCommands.buildReferencePrompt("plain hut",
+                            java.util.List.of(), dev.ghbot.builder.StyleSheets.fromString("")).equals("plain hut"));
+            check("two-pass plan parts parse (records + bare strings)",
+                    dev.ghbot.builder.BuildCommands.parseParts(
+                            "{\"name\":\"x\",\"parts\":[{\"name\":\"walls\"},{\"name\":\"roof\"}]}")
+                            .equals(java.util.List.of("walls", "roof"))
+                    && dev.ghbot.builder.BuildCommands.parseParts(
+                            "{\"parts\":[\"foundation\",\"tower\",\"keep\",\"yard\",\"EXTRA-DROPPED\"]}").size() == 4
+                    && dev.ghbot.builder.BuildCommands.parseParts("no json here").isEmpty());
+            check("two-pass prompts carry part + budget + validator feedback",
+                    dev.ghbot.builder.BuildCommands.partPrompt("{\"name\":\"x\"}", "walls", 800).contains("\"walls\"")
+                    && dev.ghbot.builder.BuildCommands.partPrompt("{\"name\":\"x\"}", "walls", 800).contains("800")
+                    && dev.ghbot.builder.BuildCommands.feedbackPrompt("walls",
+                            java.util.List.of("missing \"blocks\" field")).contains("missing \"blocks\" field"));
+            dev.ghbot.builder.JsonBuildSpec mj1 = dev.ghbot.builder.JsonBuildSpec.parse("{\"name\":\"a\",\"palette\":{\"0\":\"minecraft:stone\"},"
+                    + "\"blocks\":[{\"x\":0,\"y\":0,\"z\":0,\"block\":\"0\"},{\"x\":1,\"y\":0,\"z\":0,\"block\":\"0\"}]}");
+            dev.ghbot.builder.JsonBuildSpec mj2 = dev.ghbot.builder.JsonBuildSpec.parse("{\"name\":\"b\",\"palette\":{\"0\":\"minecraft:oak_planks\"},"
+                    + "\"blocks\":[{\"x\":0,\"y\":1,\"z\":0,\"block\":\"0\"}]}");
+            DesignSpec merged = dev.ghbot.builder.BuildCommands.mergeJsonSpecs("t", java.util.List.of(mj1, mj2), 1);
+            check("two-pass merge sums ops + tells the partial truth",
+                    merged.ops.size() == 3 && merged.name.contains("partial: 1")
+                    && merged.palette.contains("stone") && merged.palette.contains("oak_planks"));
         }
         // (5) AUDIT P1-1: template bbox Y/Z transposition — fixtures must be ASYMMETRIC
         //     (old suites only used Y/Z-symmetric fixtures, so the swap was invisible)

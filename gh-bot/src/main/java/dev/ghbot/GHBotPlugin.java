@@ -65,6 +65,7 @@ public class GHBotPlugin extends JavaPlugin {
     private WebStatusServer webServer;
     private dev.ghbot.web.WebAuthService webAuth;   // v0.23.0 — Q3 web-console login token (null when web disabled)
     private dev.ghbot.audit.AuditService auditService;   // v0.24.0 — Phase B console-log auditor + update radar
+    private dev.ghbot.builder.StyleSheets styleSheets;   // v0.25.0 — Phase C style sheets (owner-editable styles.yml)
     private ProviderRegistry providers;
     private ChatService chatService;
     private BuildService buildService;
@@ -86,6 +87,7 @@ public class GHBotPlugin extends JavaPlugin {
 
         cfg = PluginConfig.load(this);
         log = new WIBLogger(getLogger(), getDataFolder().toPath(), cfg.chatLog());
+        styleSheets = loadStyleSheets();                                       // v0.25.0 — Phase C
         log.info("GH-Bot loading…");
         dev.ghbot.core.MainThread.setPlugin(this);   // v0.21.9 — main-thread hops for async callers
 
@@ -236,7 +238,11 @@ public class GHBotPlugin extends JavaPlugin {
                                     Integer.parseInt(args[1]), Integer.parseInt(args[2]), Integer.parseInt(args[3]));
                         } catch (NumberFormatException e) { return "bad coords"; }
                     }
-                    return dev.ghbot.terrain.TerrainScanner.scan(loc, radius).toLine();
+                    // v0.25.0 — SAME reply composer as the registry `scan` command:
+                    // lattice grid + LAST_SCAN (viewer) + logs/scan/*.log. One
+                    // source of truth so the AI and chat surfaces never drift.
+                    var summary = dev.ghbot.terrain.TerrainScanner.scan(loc, radius);
+                    return dev.ghbot.terrain.TerrainCommands.toolScanReply(summary, loc, radius, log);
                 }
                 case "find" -> {
                     // v0.21.29 — find <block> [radius] [x y z] (coords optional, default bot origin)
@@ -403,6 +409,25 @@ public class GHBotPlugin extends JavaPlugin {
         }
     }
 
+    /** v0.25.0 — Phase C: copy the default styles.yml next to config.yml when absent,
+     *  then load it (owner-tweakable taste without code changes). Never throws. */
+    private dev.ghbot.builder.StyleSheets loadStyleSheets() {
+        try {
+            java.io.File f = new java.io.File(getDataFolder(), "styles.yml");
+            if (!f.isFile()) {
+                getDataFolder().mkdirs();
+                try (var in = getResource("styles.yml")) {
+                    if (in != null) java.nio.file.Files.copy(in, f.toPath());
+                }
+            }
+            var ss = dev.ghbot.builder.StyleSheets.load(f);
+            if (log != null) log.info("[GHBot] style sheets loaded: " + ss.size());
+            return ss;
+        } catch (Throwable t) {
+            return dev.ghbot.builder.StyleSheets.load(null);
+        }
+    }
+
     /** /gh reload — re-read config.yml + rebuild AI providers without a server restart (v0.21.12). */
     public String reloadGhbot() {
         StringBuilder out = new StringBuilder();
@@ -475,7 +500,7 @@ public class GHBotPlugin extends JavaPlugin {
         BlockEditCommands.register(bot, bridge, editService);
         LocationCommands.register(bot, bridge, locations);
         AiCommands.register(bot, bridge, chatService);
-        BuildCommands.register(bot, bridge, buildService, providers, ghostService, dataset, log);
+        BuildCommands.register(bot, bridge, buildService, providers, ghostService, dataset, log, styleSheets);
         ReviewCommands.register(bot, bridge, ghostService);
         SchematicCommands.register(bot, bridge, schematics, ghostService, log);   // v0.21.45 — paste stages a ghost
         DatasetCommands.register(bot, bridge, schematics, dataset, downloader, ghostService, log);

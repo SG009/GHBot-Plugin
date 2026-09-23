@@ -56,10 +56,14 @@ public final class BotCommands {
         cmd("redo", "Re-stage the build (cleared + re-staged)", "redo");
 
         // ── world editing (Pillar 2) ──
-        cmd("set", "Set a region of blocks", "set <block> <radius>");
+        cmd("set", "Set a block at a location (v0.25.0 usage matches the parser)", "set <block> at <x y z|here|me> | set <where> to <block>");
         cmd("replace", "Swap block types in a region", "replace <from> <to> [radius]");
         cmd("terraform", "Terrain edits (smooth/flatten/raise/lower)", "terraform <smooth|flatten|raise|lower> <radius>");
         cmd("undo", "Undo last edit / revert recent edits", "undo [minutes]");
+
+        // ── learning dataset (Pillar 1 quality) — revived from shelved at v0.25.0 (Phase C good-result pack) ──
+        cmd("teach", "Add a staged/library build to the learning dataset", "teach <name> [staged] [gold]");
+        cmd("dataset", "Browse/manage the build-learning dataset", "dataset list|remove <name>|clear");
 
         // ── manage server (Pillar 3) ──
         cmd("admin", "Safe config editing (backup+validate+rollback)", "admin <read|set|backup|restore|rollback|reload|menu> …");
@@ -82,8 +86,10 @@ public final class BotCommands {
     public static final java.util.Set<String> SHELVED = java.util.Set.of(
             "design", "image", "memory", "debuglog",
             "where", "save-location", "list-locations", "delete-location",
-            "editspec", "schem download", "teach", "dataset", "critique", "animate",
+            "editspec", "schem download", "critique", "animate",
             "add", "deploy", "undeploy", "workers", "avatar", "marker");
+    // v0.25.0 — teach + dataset REVIVED from this set (Phase C good-result pack):
+    // the learning dataset is how the owner curates gold exemplars for free-tier models.
 
     /** The web/AI tool sheet — every command with usage, one line each. */
     public static String toolSheet() {

@@ -1,0 +1,46 @@
+# GHBot style sheets (v0.25.0) — hand-curated quality rules for FREE-tier models.
+# A keyword in your build prompt picks ONE sheet; its palette hints + rules are
+# injected into the generation prompt verbatim. Edit freely — no restart needed
+# for NEW builds (reloaded per build), never invent keywords that don't match
+# what you say in chat.
+
+styles:
+  abandoned:
+    match: [abandoned, ruined, ruins, derelict, decayed, overgrown]
+    palette: [mossy_stone_bricks, cracked_stone_bricks, stone_bricks, cobblestone,
+              moss_block, vine, cobweb, oak_planks, gravel]
+    rules:
+      - mix ~60% stone_bricks + 25% mossy_stone_bricks + 15% cracked_stone_bricks for walls
+      - REMOVE ~15% of wall/roof blocks randomly (holes, collapsed sections) — skips count as the ruin
+      - add vines on ~30% of exterior wall faces and cobwebs in interior corners
+      - no perfect symmetry; offset the door/window positions slightly
+      - grass_path/gravel patches instead of a clean floor around the entrance
+      - cap structures LOW (house height 4-6); no intact towers unless asked
+
+  medieval:
+    match: [medieval, timbered, tudor, fantasy village, kingdom]
+    palette: [oak_planks, spruce_planks, dark_oak_log, cobblestone, stone_bricks,
+              white_wool, spruce_stairs, oak_fence, lantern]
+    rules:
+      - timber framing: dark_oak_log frame lines, white/light plaster infill
+      - steep spruce_stairs roofs (45 degrees, overhang by 1)
+      - cobblestone/stone foundation course 1-2 high under every wall
+      - lantern on fence posts at corners, not flat wall spam
+
+  modern:
+    match: [modern, minimalist, contemporary, sleek]
+    palette: [white_concrete, gray_concrete, quartz_block, glass, light_gray_concrete,
+              smooth_stone, iron_bars, sea_lantern]
+    rules:
+      - flat roofs, crisp box volumes, NO stairs-only roofs
+      - large glass panes/strip windows, concrete frame edges
+      - hidden lighting (sea_lantern flush), no torches visible
+
+  rustic:
+    match: [rustic, cottage, farmhouse, cozy, cabin]
+    palette: [spruce_planks, oak_log, cobblestone, oak_stairs, lantern, hay_block,
+              oak_fence, campfire]
+    rules:
+      - oak_log corner posts visible, plank infill
+      - small proportions (5-7 wide), warm lantern/campfire light
+      - garden/fence detail around the build counts as part of it

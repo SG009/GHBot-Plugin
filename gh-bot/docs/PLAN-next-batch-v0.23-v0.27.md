@@ -77,7 +77,8 @@ GitHub Release mirror. Owner answers from chat are quoted inline.
   update pass vs real APIs prints true state (Paper build 132 vs latest).
 - **Owner acceptance:** `GH000 audit` in chat → readable digest + update hints.
 
-## Phase C — v0.25.0 · Eyes the AI can BUILD from + "Good-Result Grade" build pack
+## Phase C — v0.25.0 · Eyes the AI can BUILD from + "Good-Result Grade" build pack  
+**✅ SHIPPED 2026-09-23 — smoke 555/555, live-validated on sandbox Paper 1.21.11-132 (lattice + scan API + set/undo world-truth + style boot), one live-caught drift fixed pre-ship (toolScanReply now the single composer); deterministic-skeleton stretch DEFERRED (owner informed). Details: ai-builder-bot-plan.md §17 v0.25.0.**
 
 > Owner: scan must stay box-shape radius so the AI understands what to offer for
 > build/edit/add… "im still confuse… do deep research for me and tell me your ideas!"

@@ -29,6 +29,10 @@ public final class TerrainScanner {
         public boolean water, lava;
         public final Map<String, Integer> topBlocks = new LinkedHashMap<>();   // block name -> count (desc)
         public final Map<Long, Integer> heightmap = new HashMap<>();        // (x,z) -> highest solid y
+        /** v0.25.0 — (x,z) -> the surface block name at that column (same keys as heightmap). */
+        public final Map<Long, String> topMaterials = new LinkedHashMap<>();
+        /** Retention cap for topMaterials (radius ~100+ scans would bloat the phone otherwise). */
+        public static final int MAX_TOP_MATERIALS = 60_000;
         public int surfaceMax;                                                  // max heightmap y
         public int surfaceMin;                                                  // min heightmap y
 
@@ -137,6 +141,65 @@ public final class TerrainScanner {
             if (!top.isEmpty()) sb.append(" — top: ").append(top);
             return sb.toString();
         }
+
+        /* ── v0.25.0 — eyes lattice (Phase C): the scan text the AI reads. Same
+         *  scanning work as before, but the per-column knowledge survives
+         *  serialization (radius-tiered so text + memory stay phone-sized). ── */
+
+        /** Scan radius derived from the bounds (0 when unset). */
+        public int radius() {
+            return Math.max((maxX - minX) / 2, (maxZ - minZ) / 2);
+        }
+
+        /** Column sampling stride per radius tier: ≤8 every column, 9–32 every 2nd
+         *  (+ exact center), >32 counts-only (historic toLine() format). */
+        public static int strideForRadius(int radius) {
+            if (radius <= 8) return 1;
+            if (radius <= 32) return 2;
+            return 0;
+        }
+
+        /** Sampled lattice lines, absolute coords: "x,z: y material". Empty when
+         *  the tier is counts-only or nothing was scanned. */
+        public List<String> latticeLines() {
+            List<String> out = new ArrayList<>();
+            int stride = strideForRadius(radius());
+            if (stride == 0 || heightmap.isEmpty()) return out;
+            int cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Integer y = height(x, z);
+                    if (y == null) continue;
+                    boolean center = x == cx && z == cz;
+                    if (!center && stride > 1
+                            && (((x - minX) % stride) != 0 || ((z - minZ) % stride) != 0)) continue;
+                    String mat = topMaterials.get(heightmapKey(x, z));
+                    out.add(x + "," + z + ": " + y + " " + (mat == null ? "?" : mat));
+                }
+            }
+            return out;
+        }
+
+        /** Budget-bounded lattice text; overflow is marked truthfully (`… +N column(s)`). */
+        public String latticeText(int budgetChars) {
+            List<String> lines = latticeLines();
+            if (lines.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            int i = 0;
+            for (; i < lines.size(); i++) {
+                String l = lines.get(i);
+                if (sb.length() + l.length() + 14 > budgetChars) break; // reserve for the "+N" line
+                if (i > 0) sb.append('\n');
+                sb.append(l);
+            }
+            if (i < lines.size()) sb.append("\n… +").append(lines.size() - i).append(" column(s) trimmed");
+            return sb.toString();
+        }
+
+        /** Full untruncated grid — routed to logs/scan/*.log by the caller. */
+        public String fullLattice() {
+            return String.join("\n", latticeLines());
+        }
     }
 
     /** v0.22.3 — scan column floor: the WORLD's min height, never clamped to 0
@@ -185,6 +248,12 @@ public final class TerrainScanner {
                             highest = y;
                             s.heightmap.put(s.heightmapKey(x, z), y);
                             s.topBlocks.merge(m.name(), 1, Integer::sum);
+                            // v0.25.0 — eyes lattice: keep the per-column surface material too
+                            // (heightmap alone told us WHERE the top is, not WHAT it is)
+                            if (s.topMaterials.size() < TerrainSummary.MAX_TOP_MATERIALS) {
+                                s.topMaterials.put(s.heightmapKey(x, z),
+                                        m.name().toLowerCase(java.util.Locale.ROOT));
+                            }
                             if (s.surfaceMax < y) s.surfaceMax = y;
                             if (s.surfaceMin == 0 || y < s.surfaceMin) s.surfaceMin = y;
                         }

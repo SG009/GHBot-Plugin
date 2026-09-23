@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.24.0 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.25.0 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -21,15 +21,17 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `export <name> [format\|all]` | Export the staged build as schematics |
 | `approve` / `deny` / `redo` | Review the staged build |
 | `cancel` | Stop the current job |
-| `view [jobId] \| view file <name>` | Open a build in the browser 3D viewer |
+| `view [jobId] \| view file <name>` | Open a build in the browser 3D viewer (`scan` checkbox renders the last terrain scan) |
+| `teach <name> [staged] [gold]` | Teach a library file / staged build as a learning sample — `gold` makes it a verbatim few-shot exemplar (≤80 blocks) · revived v0.25.0 |
+| `dataset list\|remove <name>\|clear` | Browse/manage the build-learning dataset (`[gold]` markers) · revived v0.25.0 |
 
 ## Pillar 2 — Passive eyes + world edit
 | Command | What it does |
 |---|---|
-| `scan [radius] [where\|here\|me\|player\|at x y z] [--full [depth]]` | Terrain summary + **jsonspec** (surface by default; `--full` for depth) |
+| `scan [radius] [where\|here\|me\|player\|at x y z] [--full [depth]]` | Terrain summary + **jsonspec** (surface by default; `--full` for depth) · **v0.25.0:** per-column `x,z: y material` lattice (r≤32; full grid in `logs/scan/`, viewer `scan` toggle) |
 | `look at <x, y, z\|here>` | What block is here? (+ single-block jsonspec w/ blockstate) |
 | `find <block> [radius]` | Find blocks of a type (+ jsonspec of the found coords) |
-| `set <block> <radius>` | Set a region of blocks |
+| `set <block> at <x y z\|here\|me>` · `set <where> to <block>` | Precision placement (v0.25.0 look-then-set loop; feeds `undo`) |
 | `replace <from> <to> [radius]` | Swap block types in a region |
 | `terraform [on\|off\|flatten <radius> [block]\|status]` | Surface flatten (only `flatten` is implemented — `smooth`/`raise`/`lower` are backlog, v0.22.2 doc truth) |
 | `undo [minutes]` | Undo last edit / revert recent edits. **Type-fidelity only:** blockstates (stairs facing, sign text) and container contents are NOT restored |
@@ -63,12 +65,12 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 
 ## Shelved (v0.22.0 — blocked + hidden, kept in code/git for revival)
 `avatar` · `marker` · `workers` · `deploy` · `undeploy` · `where` · `save-location` ·
-`list-locations` · `delete-location` · `teach` · `dataset` · `critique` · `design` · `image` ·
+`list-locations` · `delete-location` · `critique` · `design` · `image` ·
 `memory` · `debuglog` · `animate` · `add` · `editspec` · `schem download`
 
 These return `§7… shelved in v0.22.0 (not part of the admin surface).` if invoked, and are
 absent from help/tools/auto-detect. Remove them from `BotCommands.SHELVED` + re-add to CATALOG
-to revive.
+to revive. **(v0.25.0 revived `teach` + `dataset` this way — they power the gold build pack.)**
 
 ## In progress (next)
 - **✅ Pillar 2 upgrade SHIPPED (v0.22.1):** `scan`/`find`/`look` emit **jsonspec**

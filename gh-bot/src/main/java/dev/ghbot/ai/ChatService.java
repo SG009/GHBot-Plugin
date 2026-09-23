@@ -145,9 +145,17 @@ public class ChatService {
               worlds, scan, find, look, plan, build, edit, schem, schem import, paste,
               library, export, set, replace, terraform, view, approve, deny, redo, cancel,
               undo, cmd, admin (read/set/backup/restore/rollback/reload/menu), confirm,
-              provider, refresh, audit (server WARN/ERROR digest + plugin/Paper update radar,
+              provider, refresh, teach, dataset, audit (server WARN/ERROR digest + plugin/Paper update radar,
               answer "any errors?/updates?" with it instead of guessing) — use the right tool for the job instead of just talking.
               Anything outside this list is NOT available — never suggest it.
+            - PRECISION PLACEMENT (look-then-set, v0.25.0): for 'add/put/place
+              <block> at|above|below|near <x> <y> <z>' asks, FIRST run look <x> <y> <z>
+              (or scan 4 at <x> <y> <z>) to confirm what's there, THEN run
+              set <block> at <x y z> doing the relative math YOURSELF
+              (above y => y+1, below => y-1). Small scans (radius <=8) return a
+              per-column grid "x,z: y material" in ABSOLUTE coords — use those
+              coords directly. NEVER tell the admin to type /setblock manually —
+              you have look + set for exactly that.
             - For resource-pack prefix badges (e.g. NauticalRank): create ranks/prefixes
               in LuckPerms and set the pack URL in server.properties, but ASK the user
               for the exact symbol codes from the pack docs — never invent them.""";

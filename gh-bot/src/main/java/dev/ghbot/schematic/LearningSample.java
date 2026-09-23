@@ -23,6 +23,39 @@ public class LearningSample {
     public final Map<String, Integer> palette = new TreeMap<>();   // block -> count (desc)
     public final List<String> styleTags = new ArrayList<>();
     public String sourceUrl = "";
+    /** v0.25.0 — Phase C gold pack: optional cleaned jsonspec snippet (compact
+     *  palette+blocks) injected VERBATIM into generation prompts so free-tier
+     *  models imitate exact op usage instead of inventing schema. */
+    public String goldSpec = "";
+
+    /** Synthesize the gold snippet from a model: compact jsonspec, palette-id
+     *  compacted. Returns null when the model is empty or too big to be a useful
+     *  few-shot example (plan: gold snippets are ~20–60 ops, hard cap maxOps). */
+    public static String synthGold(dev.ghbot.builder.VoxelModel m, int maxOps) {
+        if (m == null || m.size() == 0 || m.size() > maxOps) return null;
+        java.util.Map<String, String> ids = new java.util.LinkedHashMap<>();
+        StringBuilder blocks = new StringBuilder(m.size() * 26);
+        boolean first = true;
+        for (var e : m.entries()) {
+            String id = ids.get(e.getValue());
+            if (id == null) { id = String.valueOf(ids.size()); ids.put(e.getValue(), id); }
+            if (!first) blocks.append(',');
+            first = false;
+            long k = e.getKey();
+            blocks.append("{\"x\":").append(dev.ghbot.builder.VoxelModel.xOf(k))
+                  .append(",\"y\":").append(dev.ghbot.builder.VoxelModel.yOf(k))
+                  .append(",\"z\":").append(dev.ghbot.builder.VoxelModel.zOf(k))
+                  .append(",\"block\":\"").append(id).append("\"}");
+        }
+        StringBuilder pal = new StringBuilder();
+        boolean pf = true;
+        for (var pe : ids.entrySet()) {
+            if (!pf) pal.append(',');
+            pf = false;
+            pal.append("\"").append(pe.getValue()).append("\":\"").append(pe.getKey()).append("\"");
+        }
+        return "{\"name\":\"gold\",\"palette\":{" + pal + "},\"blocks\":[" + blocks + "]}";
+    }
     /**
      * v0.21 — compressed structural fingerprint: foundation/roof dominant
      * materials, density, bbox, tallest point. Keeps RAG prompts tiny instead

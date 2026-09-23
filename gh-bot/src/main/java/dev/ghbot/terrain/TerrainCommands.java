@@ -19,6 +19,12 @@ import java.util.List;
  */
 public final class TerrainCommands {
 
+    /** v0.25.0 — the most recent scan (any bot), for the web viewer's scan layer.
+     *  Volatile: written on the async scan pool, read by the web thread. */
+    public static volatile dev.ghbot.terrain.TerrainScanner.TerrainSummary LAST_SCAN;
+    public static volatile int[] LAST_ORIGIN = new int[]{0, 0, 0};
+    public static volatile int LAST_RADIUS;
+
     private TerrainCommands() {}
 
     public static void register(GHBot bot, CommandBridge bridge, WIBLogger log) {
@@ -76,7 +82,13 @@ public final class TerrainCommands {
                     // v0.22.1 — eyes-as-data: emit the world as a TerrainSpec (memory + file + inline)
                     TerrainSpec spec = TerrainScanner.scanSpec(targetFinal, rFinal, depthFinal);
                     if (spec != null) routeSpec(b, sender, log, spec);
-                    sender.sendMessage("§a[" + b.id() + "] " + summary.toLine());
+                    // v0.25.0 — Phase C lattice: small scans hand the AI the real
+                    // per-column grid (absolute coords); the FULL grid always lands
+                    // in logs/scan/*.log; the web viewer reads it via LAST_SCAN.
+                    // Composed by toolScanReply — the SAME helper the AI/AutoTool
+                    // surface uses, so chat and API replies can never drift.
+                    String body = toolScanReply(summary, targetFinal, rFinal, log);
+                    sender.sendMessage("§a[" + b.id() + "] " + body.replace("\n", "\n§7"));
                 } finally {
                     b.setActivity(GHBot.Activity.IDLE);
                 }
@@ -241,6 +253,25 @@ public final class TerrainCommands {
         if (file != null) msg.append(" §7(").append(file).append(')');
         msg.append("\n§7").append(spec.toJsonInline(TerrainSpec.INLINE_MAX));
         sender.sendMessage(msg.toString());
+    }
+
+    /**
+     * v0.25.0 — THE scan-reply composer, shared by the registry command AND the
+     * AI/AutoTool tool surface (GHBotPlugin) so both always answer identically.
+     * Sets LAST_SCAN/LAST_ORIGIN/LAST_RADIUS (viewer scan layer), writes the full
+     * grid to logs/scan/*.log when a lattice exists, and returns
+     * "toLine + lattice grid (+ grid-file note)" — toLine only when the scan is
+     * counts-only (radius > 32 → stride 0).
+     */
+    public static String toolScanReply(dev.ghbot.terrain.TerrainScanner.TerrainSummary summary,
+                                       Location target, int radius, WIBLogger log) {
+        LAST_SCAN = summary;
+        LAST_ORIGIN = new int[]{target.getBlockX(), target.getBlockY(), target.getBlockZ()};
+        LAST_RADIUS = radius;
+        String lattice = summary.latticeText(1500);
+        if (lattice.isEmpty()) return summary.toLine();
+        String file = log != null ? log.writeScanGrid(summary.fullLattice()) : null;
+        return summary.toLine() + "\n" + lattice + (file != null ? "\nfull grid: " + file : "");
     }
 
     /** v0.22.1 — dominant top block from the last scan context (for "find that" fallback). */

@@ -1,13 +1,13 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) · smoke **533/533 PASS** · jar `GHBot-0.24.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) · smoke **555/555 PASS** · jar `GHBot-0.25.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.24.0 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.25.0 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-09-23**. The rest of the
@@ -17,6 +17,45 @@
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.25.0 (eyes lattice & Good-Result build pack — Phase C of the owner-approved batch)
+
+- **Eyes lattice (AI-grade terrain):** `scan` now hands back a per-column **`x,z: y material` absolute
+  grid** (stride tiers: ≤8 → every column, 9–32 → every 2nd, >32 → counts-only), budget-capped with a
+  truthful `… +N column(s) trimmed` marker. The FULL grid always lands in `logs/scan/grid-<ts>.log`.
+  One shared composer (`TerrainCommands.toolScanReply`) serves BOTH the `GH000 scan` command and the
+  AI/AutoTool surface — the v0.24.0-era drift where the tool path answered counts-only is gone
+  (live-caught pre-ship; drift-guard smoke pin added).
+- **Viewer scan layer:** the 3D viewer gains a `scan` checkbox — the last scan renders with the SAME
+  block renderer via `/api/scan/last` (`{origin, radius, blocks[]}`, voxels re-based; 404 → friendly
+  toast + auto-uncheck). Untoggling restores your build preview.
+- **Look-then-set precision loop:** `set <block> at <x y z|here|me>` catalog entry, a strict
+  AUTO-TOOL matcher (`place|set <block> at x y z`, negative coords fine, truthful "unknown block"
+  feedback), and a PROMPT block teaching the AI: scan/look first, do the ±Y math, place with `set` —
+  never tell the admin to run `/setblock` by hand. Live-verified: natural language → placed block
+  confirmed in-world via vanilla `execute if block`, then `undo` → air.
+- **Good-Result build pack (retrieval-augmented quality, no GPU needed):**
+  - `teach <name> [staged] gold` — gold-tagged samples synthesize a palette-compressed **verbatim
+    few-shot exemplar** (≤80 blocks) injected into the build reference prompt; `dataset` shows
+    `§6[gold]` markers. Gold round-trips through the dataset files.
+  - **`plugins/GHBot/styles.yml`** — hand-editable style sheets (abandoned/medieval/modern/rustic;
+    e.g. "abandoned" = block-decay mix + ~15% missing wall/roof + vines/cobwebs + no symmetry).
+    Editable on disk, loaded at boot.
+  - **Two-pass generation** for complex builds: plan → per-part spec generation → per-part validation
+    with ONE feedback retry carrying the real parse diagnostic → merge (merged name honestly carries
+    `(partial: N part(s) dropped)` when a part fails twice).
+- **teach/dataset revived** from the shelved surface (they power the gold pack); catalog/help/prompt
+  contract pins updated to match.
+- **Deferred (owner told):** the deterministic-skeleton stretch idea (block-brush pre-pass) stayed on
+  the whiteboard — the three quality levers above are the phone-safe 80% of it.
+- **Smoke 555/555** (+22): lattice stride tiers/budget-trim/center-keep, null guards, toolScanReply +
+  source drift guard, scan-feed JSON shape, strict-set display + negative-coords, auto-tool no-`add`
+  passthrough, precision-prompt block, gold synth/save/load/list marker/≤80 truthful-skip, style
+  match + inject, plan-parse records-or-strings cap 4, part/feedback prompts, merge partial name,
+  two-pass contract + shelved-surface contract updates.
+- **Live-verified on sandbox Paper 1.21.11-132:** lattice reply + grid file + `/api/scan/last`
+  (81 columns for r=4), set/undo in-world truth, strict-set via chat with negative coords,
+  styles.yml boot copy, audit regression, auth matrix, clean shutdown.
 
 ### What's new in v0.24.0 (console-log auditor — Phase B of the owner-approved batch)
 
@@ -345,7 +384,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **533 checks**):
+2. Recompile + run the smoke suite (currently **555 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -441,7 +480,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (533 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (555 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)
