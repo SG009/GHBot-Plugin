@@ -58,6 +58,27 @@ public final class AutoTools {
             return new Call("scan", args, "scan " + String.join(" ", args));
         }
 
+        // ── audit show/fix (v0.26.0): drill into a numbered group ──
+        Matcher mAuditIx = Pattern.compile("^audit\\s+(show|fix)\\s+(\\d+)\\s*$").matcher(low);
+        if (mAuditIx.find()) {
+            return new Call("audit", new String[]{mAuditIx.group(1), mAuditIx.group(2)},
+                    "audit " + mAuditIx.group(1) + " " + mAuditIx.group(2));
+        }
+        // live catch (v0.26.0 sandbox): literal sub-commands fell through to the AI
+        // — with no provider they never ran. Route them deterministically.
+        Matcher mAuditSub = Pattern.compile("^audit\\s+(updates|reload|clear|selftest)\\s*$").matcher(low);
+        if (mAuditSub.find()) {
+            return new Call("audit", new String[]{mAuditSub.group(1)}, "audit " + mAuditSub.group(1));
+        }
+        Matcher mFixNat = Pattern.compile("^(?:how (?:do|can) i fix|fix|how to fix)\\s+(?:the\\s+|this\\s+)?(?:error|issue|problem|warning)\\s*(?:number\\s+|#)?\\s*(\\d+)\\s*\\??$").matcher(low);
+        if (mFixNat.find()) {
+            return new Call("audit", new String[]{"fix", mFixNat.group(1)}, "audit fix " + mFixNat.group(1));
+        }
+        Matcher mShowNat = Pattern.compile("^show\\s+(?:me\\s+)?(?:the\\s+)?(?:error|issue|problem|warning)\\s*(?:number\\s+|#)?\\s*(\\d+)\\s*\\??$").matcher(low);
+        if (mShowNat.find()) {
+            return new Call("audit", new String[]{"show", mShowNat.group(1)}, "audit show " + mShowNat.group(1));
+        }
+
         // ── audit (v0.24.0): "audit", "any errors?", "server problems?", "check updates" ──
         if (low.matches("^(audit|audit now|server audit|check errors|any errors\\??.*|server problems\\??.*|"
                 + "what'?s wrong( with the server)?\\??.*|updates available\\??.*|check (for )?updates.*)$")) {

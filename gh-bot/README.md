@@ -1,13 +1,13 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) · smoke **555/555 PASS** · jar `GHBot-0.25.0.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) · smoke **579/579 PASS** · jar `GHBot-0.26.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.25.0 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.26.0 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
 > read this section first. It is the verified truth as of **2026-09-23**. The rest of the
@@ -17,6 +17,41 @@
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.26.0 (audit fix-advisor — Phase E2, owner-proposed "hand me the fix, correctly")
+
+- **Browse-ability:** digest groups are now **numbered** (`• 1) server (WARN ×6, 5 lines)…`) and the
+  footer tells you how to drill in. `audit show <n>` renders **every captured line + stack frames**
+  for group #n (bounded 25 lines, truthful trim note, truthful "last seen N min ago" — synthetic
+  stamps never claim absurd ages). Out-of-range answers honestly (`valid: 1..N`, `ring is empty`).
+- **`audit fix <n>` — the fix, from a knowledge base:** new hand-editable
+  **`plugins/GHBot/audit-fixes.yml`** (copied at boot, `audit reload` re-reads without restart).
+  Your rules are matched BEFORE the **19 built-in rules** (release-behind, plugin-update, missing
+  dependency, wrong Java, API mismatch, enable-failure, offline-mode, OOM, tick-lag, network, TLS,
+  AI-401, geyser-update, vault-no-provider, unknown-command, auth-servers, port-bind,
+  world-corruption, audit-selftest) — matched on the WHOLE group hay (lines + stacks); `%s` renders
+  the source name. Every reply names its rule and where it came from (`audit-fixes.yml`/`built-in`).
+- **AI-guess fallback (clearly labeled):** when no rule matches AND a provider is configured, the
+  bot asks it once on a dedicated memory lane (never pollutes your real chat memory) and labels the
+  answer "🤖 AI guess (unverified — double-check before acting)"; no provider → honest "no known fix,
+  add a rule" instead of silence.
+- **Update-table honesty (owner-evidence fixes):** `audit updates` now answers with the CURRENT
+  table **immediately** (the "results arrive in a moment" that then stayed quiet is gone — live
+  catch from your logs) plus a truthful "last checked N min ago"; pre-release targets get
+  `· ⚠ pre-release build — test on a copy first` (your ollama had overclaimed "all three safe").
+- **Auto-tool coverage:** literal `audit show|fix <n>` / `audit updates|reload|clear|selftest` and
+  natural phrases ("how do I fix the error 2?") route deterministically — the v0.25.0-era gap where
+  `audit reload` silently fell to the AI is pinned against (live catch).
+- **One shared group ordering** (`orderedGroups`) feeds digest/show/fix — a group's NUMBER can never
+  mean different things on different surfaces.
+- **Smoke 579/579** (+24): ordering, numbering+footer, show-fidelity/truthful-bounds/age, KB
+  parse/precedence/malformed-yml/broken-regex/%s-render, fix routing, pre-release notes, check age,
+  auto-tool literal+natural routing, clean-digest no-footer. Mutations D/E/F each killed exactly
+  their pins (D also killed the render pin — same wrong behavior, acceptable).
+- **Live-verified on sandbox Paper 1.21.11-132:** KB boot copy ("2 file + 19 built-ins"), numbered
+  digest, `audit show 1` full banner browse, `audit fix 1` served by the FILE rule (owner precedence
+  proven), yml edit + `audit reload` + new text in the very next fix answer, selftest →
+  nothing-to-fix rule, synchronous update table, out-of-range truth, strict-set regression.
 
 ### What's new in v0.25.0 (eyes lattice & Good-Result build pack — Phase C of the owner-approved batch)
 
@@ -384,7 +419,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **555 checks**):
+2. Recompile + run the smoke suite (currently **579 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -480,7 +515,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (555 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (579 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)

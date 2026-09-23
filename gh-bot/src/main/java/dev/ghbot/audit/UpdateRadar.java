@@ -37,7 +37,7 @@ public final class UpdateRadar {
             new Source("ViaRewind", Source.MODRINTH, "viarewind"),
             new Source("LuckPerms", Source.MODRINTH, "luckperms"));
 
-    private static final String UA = "GHBot-Plugin/0.24 (https://github.com/SG009/GHBot-Plugin)";
+    private static final String UA = "GHBot-Plugin/0.26 (https://github.com/SG009/GHBot-Plugin)";
     private static final long MAX_BYTES = 1_500_000;
 
     /* ── one full pass ────────────────────────────────────────────────── */

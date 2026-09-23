@@ -120,6 +120,7 @@ public class GHBotPlugin extends JavaPlugin {
         commandLearning = new CommandLearning(this, log);  // Phase 11 — command learning
         commandLearning.setCapture(new dev.ghbot.command.CmdOutputCapture(this, log, commandLearning)); // v0.22.2 — Pillar 3 cmd output capture
         auditService = new dev.ghbot.audit.AuditService(this, log);      // v0.24.0 — Phase B log auditor
+        auditService.loadFixes(ensureBundledYml("audit-fixes.yml"));     // v0.26.0 — Phase E2 fix knowledge base
         adminService = new AdminService(getDataFolder().getParentFile().toPath(), log, getDataFolder().toPath(), this); // Phase 11b — admin ops (owner enables reload health-check guard)
         dataset = new LearningDataset(getDataFolder().toPath(), log);      // Phase 8b — learning dataset
         downloader = new SchematicDownloader(log);
@@ -411,6 +412,20 @@ public class GHBotPlugin extends JavaPlugin {
 
     /** v0.25.0 — Phase C: copy the default styles.yml next to config.yml when absent,
      *  then load it (owner-tweakable taste without code changes). Never throws. */
+    /** v0.26.0 — copy a bundled owner-editable file into plugins/GHBot on first boot. */
+    private java.io.File ensureBundledYml(String name) {
+        java.io.File f = new java.io.File(getDataFolder(), name);
+        if (!f.isFile()) {
+            try {
+                getDataFolder().mkdirs();
+                try (var in = getResource(name)) {
+                    if (in != null) java.nio.file.Files.copy(in, f.toPath());
+                }
+            } catch (Throwable ignored) {}
+        }
+        return f;
+    }
+
     private dev.ghbot.builder.StyleSheets loadStyleSheets() {
         try {
             java.io.File f = new java.io.File(getDataFolder(), "styles.yml");
@@ -507,7 +522,7 @@ public class GHBotPlugin extends JavaPlugin {
         PreviewCommands.register(bot, bridge, previews, schematics, cfg.webEnabled() ? cfg.webPort() : -1);
         EditCommands.register(bot, bridge, editService2, providers, log);
         CommandLearningCommands.register(bot, bridge, commandLearning);
-        dev.ghbot.audit.AuditCommands.register(bot, bridge, auditService);   // v0.24.0 — Phase B
+        dev.ghbot.audit.AuditCommands.register(bot, bridge, auditService, chatService);   // v0.26.0 — Phase E2 fix-advisor
         AdminCommands.register(bot, bridge, adminService);
         AvatarCommands.register(bot, bridge, avatarService, markerService);
         // null-guard: sessions is created before the first registerBot() in onEnable,

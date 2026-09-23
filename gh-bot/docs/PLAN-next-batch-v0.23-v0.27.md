@@ -144,6 +144,9 @@ is why precision asks degrade to "manually type setblock".
 - **Owner acceptance:** chat "scan 8" then "add diamond block above the dirt
   block at 0 -1 0" → GHBot stages exactly 1 block at (0,0,0) for your approve.
 
+## Phase C+ — v0.26.0 · Audit Fix-Advisor (owner-proposed mid-batch, greenlit by "Continue..") ✅ SHIPPED 2026-09-23
+Owner: "this audit feature shouldn't just inform error events but hand the admin the advice on how/what it needs — correctly — to fix the issues." Shipped: numbered digest + `audit show <n>` full browse · `audit fix <n>` from hand-editable **audit-fixes.yml** (owner rules > 19 built-ins, `audit reload` live) · clearly-labeled AI-guess fallback · synchronous `audit updates` with check age + pre-release risk notes. Smoke 579/579 (+24, mutations D/E/F validated); live-verified incl. edit→reload→answer round-trip. Deferred inside: none.
+
 ## Phase D — v0.26.0 · Terraform brushes (WorldPainter-style, phone-sized)
 
 > Owner: "if possible we could make this part to have the same feature as

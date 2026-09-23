@@ -340,6 +340,23 @@ public class ChatService {
     }
 
     /** Sync chat — returns the reply text (used by the web chat panel). */
+    /**
+     * v0.26.0 — audit fix-advisor: a one-shot question on a DEDICATED memory lane
+     * (e.g. "audit-fix") so internal consultations never pollute the admin's real
+     * web/in-game conversation memory. Blocks on the provider chain (call from a
+     * worker thread, never the main thread).
+     */
+    public String askOnce(GHBot bot, String lane, String text) {
+        String key = bot.id() + "|" + lane;
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
+        hist.add(new AIClient.ChatMessage("user", text));
+        trim(hist);
+        String reply = runCatch(bot, hist);
+        hist.add(new AIClient.ChatMessage("assistant", reply));
+        trim(hist);
+        return reply;
+    }
+
     public String chatSync(GHBot bot, String text) {
         String key = bot.id() + "|web";
         List<AIClient.ChatMessage> hist = getOrCreateSession(key);

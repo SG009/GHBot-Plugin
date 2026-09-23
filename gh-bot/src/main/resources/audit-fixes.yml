@@ -1,0 +1,28 @@
+# ═══════════════════════════════════════════════════════════════════
+# GHBot audit fix knowledge base (v0.26.0) — what `audit fix <n>` answers.
+#
+# How it works: every audit group carries its lines + stack frames. The first
+# rule whose `match` regex is found in that hay WINS. Rules in THIS file are
+# matched BEFORE the ~18 built-in ones, so yours always override the defaults.
+#
+#    - id: short-name-for-the-rule
+#      match: "(?i)your|regex|here"      # case-insensitive if you add (?i)
+#      fix: "What to do, practical steps. %s becomes the source/plugin name."
+#
+# Edit, save, then `audit reload` in chat — no server restart needed.
+# ═══════════════════════════════════════════════════════════════════
+rules:
+  # Your own server's release-behind routine (overrides the built-in):
+  - id: release-behind
+    match: "(?i)release\\(s\\) behind|newer (stable )?release"
+    fix: "Paper is behind. Your path: `stop` (confirm) → swap paper jar from https://papermc.io/downloads (your MC version) → start. GHBot's radar line tracks the gap."
+
+  # Example override so the ViaVersion nag points at YOUR update habit:
+  - id: via-nag
+    match: "(?i)There is a newer plugin version available"
+    fix: "%s says it's outdated — check `audit updates` for the tracked latest; grab it from the official page (Modrinth/Hangar), swap the jar in plugins/, restart during off-hours."
+
+  # Template — copy, un-comment, adapt:
+  # - id: my-plugin-quirk
+  #   match: "(?i)some exact line from your logs"
+  #   fix: "The fix for %s, step by step."

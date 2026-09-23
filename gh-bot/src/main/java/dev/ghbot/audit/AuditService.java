@@ -29,6 +29,9 @@ public final class AuditService {
     private final java.nio.file.Path notifiedFile;
     private volatile Map<String, String> pluginRoots = Map.of();   // package-root → plugin name
     private volatile List<UpdateRadar.CheckResult> radarResults;   // null = first pass pending
+    private volatile long radarStamp;                              // when the last pass succeeded (0 = never)
+    private volatile FixRules fixes = FixRules.fromString(null);   // v0.26.0 — fix knowledge base (built-ins floor)
+    private volatile java.io.File fixesFile;                       // v0.26.0 — audit-fixes.yml (for `audit reload`)
     private volatile long bootTime = System.currentTimeMillis();
     private final java.util.List<Integer> taskIds = new java.util.ArrayList<>();
 
@@ -40,6 +43,26 @@ public final class AuditService {
 
     public LogWatch watch() { return watch; }
     public List<UpdateRadar.CheckResult> radarResults() { return radarResults; }
+    public long radarStamp() { return radarStamp; }
+    public FixRules fixes() { return fixes; }
+
+    /** v0.26.0 — load/reload the fix knowledge base (audit-fixes.yml + built-in floor). Never throws. */
+    public void loadFixes(java.io.File f) {
+        fixesFile = f;
+        FixRules fr = FixRules.fromString(null);
+        if (f != null && f.isFile()) {
+            try { fr = FixRules.fromString(java.nio.file.Files.readString(f.toPath())); }
+            catch (Throwable t) { log.warn("[GHBot] audit-fixes.yml unreadable (" + t.getClass().getSimpleName() + ") — built-in rules only"); }
+        }
+        fixes = fr;
+        log.info("[GHBot] audit fix rules: " + fr.custom().size() + " file + " + fr.builtinCount() + " built-ins");
+    }
+
+    /** v0.26.0 — `audit reload`: re-read audit-fixes.yml without a restart. */
+    public String reloadFixes() {
+        loadFixes(fixesFile);
+        return "audit-fixes.yml reloaded — " + fixes.custom().size() + " file rule(s) + " + fixes.builtinCount() + " built-ins";
+    }
 
     /** Called at enable: attach the listener + harvest plugin roots + schedule radar. */
     public void start() {
@@ -93,6 +116,7 @@ public final class AuditService {
             String mc = Bukkit.getMinecraftVersion();
             List<UpdateRadar.CheckResult> results = UpdateRadar.runOnce(installed, paperBuild, mc);
             radarResults = results;
+            radarStamp = System.currentTimeMillis();
             Map<String, String> prev = UpdateRadar.loadNotified(notifiedFile);
             List<UpdateRadar.CheckResult> fresh = UpdateRadar.freshNotices(results, prev);
             if (!fresh.isEmpty()) {
@@ -199,6 +223,27 @@ public final class AuditService {
 
     /* ── the digest ───────────────────────────────────────────────────── */
 
+    /**
+     * THE group ordering — severity-first (groups containing ERROR/FATAL first),
+     * then total count desc. Shared by the digest, `audit show <n>` and
+     * `audit fix <n>` so a group's NUMBER can never mean different things on
+     * different surfaces (same lesson as toolScanReply, v0.25.0).
+     */
+    public static List<Map.Entry<String, List<LogWatch.Entry>>> orderedGroups(
+            List<LogWatch.Entry> entries, Map<String, String> pluginRoots) {
+        Map<String, List<LogWatch.Entry>> byPlugin = new LinkedHashMap<>();
+        for (LogWatch.Entry e : entries) {
+            byPlugin.computeIfAbsent(attribute(e.logger, e.thrown, pluginRoots), k -> new ArrayList<>()).add(e);
+        }
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = new ArrayList<>(byPlugin.entrySet());
+        groups.sort((g1, g2) -> {
+            int s1 = severity(g1.getValue()), s2 = severity(g2.getValue());
+            if (s1 != s2) return Integer.compare(s2, s1);
+            return Integer.compare(countOf(g2.getValue()), countOf(g1.getValue()));
+        });
+        return groups;
+    }
+
     /** Grouped, severity-first, bounded chat digest. Never throws. */
     public String digest() {
         return buildDigest(watch.snapshot(), pluginRoots, radarResults, bootTime);
@@ -208,24 +253,13 @@ public final class AuditService {
     public static String buildDigest(List<LogWatch.Entry> entries, Map<String, String> pluginRoots,
                                      List<UpdateRadar.CheckResult> radarResults, long bootTime) {
         StringBuilder sb = new StringBuilder();
-        if (entries.isEmpty()) {
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = orderedGroups(entries, pluginRoots);
+        if (groups.isEmpty()) {
             sb.append("✅ server audit: clean — no WARN/ERROR captured since boot.");
         } else {
             int errors = 0, warns = 0, total = 0;
-            Map<String, List<LogWatch.Entry>> byPlugin = new LinkedHashMap<>();
             for (LogWatch.Entry e : entries) {
                 total += e.count;
-                String src = attribute(e.logger, e.thrown, pluginRoots);
-                byPlugin.computeIfAbsent(src, k -> new ArrayList<>()).add(e);
-            }
-            // severity-first (groups containing any ERROR/FATAL first), then by total count desc
-            List<Map.Entry<String, List<LogWatch.Entry>>> groups = new ArrayList<>(byPlugin.entrySet());
-            groups.sort((g1, g2) -> {
-                int s1 = severity(g1.getValue()), s2 = severity(g2.getValue());
-                if (s1 != s2) return Integer.compare(s2, s1);
-                return Integer.compare(countOf(g2.getValue()), countOf(g1.getValue()));
-            });
-            for (LogWatch.Entry e : entries) {
                 if (e.level.equals("ERROR") || e.level.equals("FATAL")) errors += e.count; else warns += e.count;
             }
             // truthful age: real boots pass bootTime>0; a 0/negative stamps "since boot"
@@ -234,7 +268,7 @@ public final class AuditService {
                     ? "last " + Math.max(0, (System.currentTimeMillis() - bootTime) / 60000) + " min"
                     : "since boot";
             sb.append("📋 server audit — ").append(total).append(" event(s) · ")
-              .append(byPlugin.size()).append(" source(s) · errors: ").append(errors)
+              .append(groups.size()).append(" source(s) · errors: ").append(errors)
               .append(", warnings: ").append(warns).append(" · ").append(age).append(":");
             int shown = 0;
             for (var g : groups) {
@@ -250,20 +284,100 @@ public final class AuditService {
                 String hint = suggest(g.getKey(), lvl, groupHay(g.getValue()), "");
                 if (distinct == 1) {
                     // every line identical → the "×N" after the quote is truthful
-                    sb.append("\n• ").append(g.getKey()).append(" (").append(lvl)
+                    // v0.26.0 — numbered groups feed `audit show <n>` / `audit fix <n>` (same ordering)
+                    sb.append("\n• ").append(shown).append(") ").append(g.getKey()).append(" (").append(lvl)
                       .append(n > 1 ? " ×" + n : "").append("): \"").append(msg)
                       .append(n > 1 ? "\" ×" + n : "\"").append(" — ").append(hint);
                 } else {
                     // mixed lines (e.g. Paper's multi-line update banner): quote the most
                     // informative line, state the true line count — never imply "×N"
-                    sb.append("\n• ").append(g.getKey()).append(" (").append(lvl)
+                    sb.append("\n• ").append(shown).append(") ").append(g.getKey()).append(" (").append(lvl)
                       .append(" ×").append(n).append(", ").append(distinct).append(" lines): \"")
                       .append(msg).append("\" — ").append(hint);
                 }
             }
         }
         sb.append("\n").append(UpdateRadar.line(radarResults));
+        if (!groups.isEmpty()) {
+            sb.append("\n🔍 browse full lines: audit show 1..").append(groups.size())
+              .append(" · 🛠 fix advice: audit fix <n>");
+        }
         return sb.toString();
+    }
+
+    /* ── v0.26.0 — Phase E2: browse (`audit show <n>`) + fix advice (`audit fix <n>`) ── */
+
+    /** Full drill-down of group #n (digest ordering): every captured line, counts,
+     *  stacks — bounded to 25 rendered lines with a truthful trim note. */
+    public String show(int n) { return showGroup(watch.snapshot(), pluginRoots, n); }
+
+    /** Static seam (smoke-pinned). */
+    public static String showGroup(List<LogWatch.Entry> entries, Map<String, String> pluginRoots, int n) {
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = orderedGroups(entries, pluginRoots);
+        if (n < 1 || n > groups.size()) {
+            return "no such audit source #" + n + (groups.isEmpty()
+                    ? " — the audit ring is empty (nothing captured yet)"
+                    : " — valid: 1.." + groups.size());
+        }
+        var g = groups.get(n - 1);
+        int errs = 0, warns = 0;
+        long newest = 0;
+        for (LogWatch.Entry e : g.getValue()) {
+            if (e.level.equals("ERROR") || e.level.equals("FATAL")) errs += e.count; else warns += e.count;
+            newest = Math.max(newest, e.lastTime);
+        }
+        StringBuilder sb = new StringBuilder("📋 audit #").append(n).append(" — ").append(g.getKey()).append(" (")
+                .append(errs > 0 ? errs + " error(s) + " : "").append(warns).append(" warning(s)");
+        // truthful age only for real-world timestamps (synthetic/clock-less entries
+        // carry tiny stamps — no absurd minute counts, same doctrine as the digest)
+        if (newest >= 946684800000L) sb.append(" · last seen ").append(Math.max(0, (System.currentTimeMillis() - newest) / 60000)).append(" min ago");
+        sb.append("):");
+        int lines = 0, skipped = 0;
+        for (LogWatch.Entry e : g.getValue()) {
+            String head = "[" + e.level + (e.count > 1 ? " ×" + e.count : "") + "] " + e.message;
+            String block = e.thrown.isEmpty() ? head : head + "\n" + e.thrown;
+            String[] parts = block.split("\n");
+            if (lines + parts.length > 25) { skipped += parts.length; continue; }
+            for (String line : parts) { sb.append("\n").append(line); lines++; }
+        }
+        if (skipped > 0) sb.append("\n… +").append(skipped).append(" more line(s) — full data in logs/latest.log");
+        return sb.toString();
+    }
+
+    /** The fix rule matching group #n, or null (out-of-range OR no matching rule). */
+    public FixRules.Rule fixRule(int n) {
+        return fixRuleFor(watch.snapshot(), pluginRoots, n, fixes);
+    }
+
+    /** Static seam (smoke-pinned). */
+    public static FixRules.Rule fixRuleFor(List<LogWatch.Entry> entries, Map<String, String> pluginRoots,
+                                           int n, FixRules rules) {
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = orderedGroups(entries, pluginRoots);
+        if (n < 1 || n > groups.size() || rules == null) return null;
+        return rules.match(groupHay(groups.get(n - 1).getValue()));
+    }
+
+    /** "no such audit source" text (shared by show-less fix paths). */
+    public String noSuchSource(int n) {
+        int size = orderedGroups(watch.snapshot(), pluginRoots).size();
+        return "no such audit source #" + n + (size == 0 ? " — the audit ring is empty" : " — valid: 1.." + size);
+    }
+
+    /** True when group #n exists but has no matching rule (→ the AI-guess path). */
+    public String groupSource(int n) {
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = orderedGroups(watch.snapshot(), pluginRoots);
+        return n >= 1 && n <= groups.size() ? groups.get(n - 1).getKey() : null;
+    }
+
+    /** AI-guess context for group #n (source + bounded hay). */
+    public String groupContextForAi(int n, int budget) {
+        List<Map.Entry<String, List<LogWatch.Entry>>> groups = orderedGroups(watch.snapshot(), pluginRoots);
+        if (n < 1 || n > groups.size()) return null;
+        var g = groups.get(n - 1);
+        String lvl = severity(g.getValue()) >= 2 ? "ERROR" : "WARN";
+        String hay = groupHay(g.getValue());
+        if (hay.length() > budget) hay = hay.substring(0, budget) + "…";
+        return "source: " + g.getKey() + " (" + lvl + ")\n" + hay;
     }
 
     private static int severity(List<LogWatch.Entry> es) {
@@ -315,20 +429,37 @@ public final class AuditService {
         return sb.toString();
     }
 
-    /** Details for `audit updates`: one line per checked plugin. */
+    /** Details for `audit updates`: one line per checked plugin + truthful check age. */
     public String updatesDetail() {
         List<UpdateRadar.CheckResult> rs = radarResults;
         if (rs == null) return "update radar: first check still pending (runs ~60 s after boot) — try again shortly.";
+        return updatesDetailOf(rs, radarStamp);
+    }
+
+    /** Static seam (smoke-pinned). stamp 0 → no age claim. Never throws. */
+    public static String updatesDetailOf(List<UpdateRadar.CheckResult> rs, long stamp) {
         StringBuilder sb = new StringBuilder("update radar detail:");
         for (UpdateRadar.CheckResult r : rs) {
             sb.append("\n• ").append(r.pluginName()).append(" — installed ").append(r.current())
               .append(r.status() == UpdateRadar.Status.BEHIND
-                      ? " · LATEST " + r.latest() + " ⬆ (behind!)"
+                      ? " · LATEST " + r.latest() + " ⬆ (behind!)" + preReleaseTag(r.latest())
                       : r.status() == UpdateRadar.Status.CURRENT ? " · current ✓"
                       : r.status() == UpdateRadar.Status.AHEAD ? " · ahead of public release (!)"
                       : r.status() == UpdateRadar.Status.OFFLINE ? " · check failed (offline)"
                       : " · latest unknown");
         }
+        if (stamp > 0) {
+            sb.append("\nlast checked ").append(Math.max(0, (System.currentTimeMillis() - stamp) / 60000))
+              .append(" min ago (auto re-check daily; `audit updates` also kicks a silent re-check)");
+        }
         return sb.toString();
+    }
+
+    /** v0.26.0 — risk note for pre-release targets (answers "is it safe?" truthfully). */
+    public static String preReleaseTag(String latest) {
+        if (latest != null && java.util.regex.Pattern.compile("(?i)snapshot|beta|alpha|-rc\\b|\\brc\\d").matcher(latest).find()) {
+            return " · ⚠ pre-release build — test on a copy first";
+        }
+        return "";
     }
 }

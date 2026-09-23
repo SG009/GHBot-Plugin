@@ -2183,6 +2183,107 @@ public class SmokeTest {
                     && aud2 != null && aud2.name().equals("audit")
                     && aud3 != null && aud3.name().equals("audit")
                     && aud3.args().length == 1 && aud3.args()[0].equals("updates"));
+
+            // ── v0.26.0 — Phase E2 audit fix-advisor (browse + fix KB + honesty) ──
+            // shared ordering: show/fix see the SAME group numbers as the digest
+            var grps = dev.ghbot.audit.AuditService.orderedGroups(lw3.snapshot(), roots);
+            check("audit groups: one shared ordering for digest/show/fix (ERROR first)",
+                    grps.size() == 2 && grps.get(0).getKey().equals("Essentials")
+                    && grps.get(1).getKey().equals("Geyser-Spigot"));
+            check("digest numbers its groups + shows the browse/fix footer",
+                    dg.contains("• 1) Essentials (") && dg.contains("• 2) Geyser-Spigot (")
+                    && dg.contains("audit show 1..2") && dg.contains("audit fix <n>"));
+            check("clean digest shows no browse footer",
+                    !dgEmpty.contains("audit show") && !dgEmpty.contains("audit fix"));
+            // show: full lines + stacks, truthful bounds + age
+            String shFull = dev.ghbot.audit.AuditService.showGroup(lwHay.snapshot(), roots, 1);
+            check("audit show renders ALL group lines + stack frames",
+                    shFull.startsWith("📋 audit #1 — com.example.X (2 error(s)")
+                    && shFull.contains("generic and rather long") && shFull.contains("boom")
+                    && shFull.contains("at com.example.X.run") && shFull.contains("[ERROR]"));
+            check("audit show out-of-range is truthful",
+                    dev.ghbot.audit.AuditService.showGroup(lwHay.snapshot(), roots, 3).contains("valid: 1..1")
+                    && dev.ghbot.audit.AuditService.showGroup(java.util.List.of(), roots, 1).contains("ring is empty"));
+            dev.ghbot.audit.LogWatch lwAge = new dev.ghbot.audit.LogWatch(8);
+            lwAge.note("net.minecraft.server.Main", "WARN", "tick lag check", "",
+                    System.currentTimeMillis() - 180000);
+            check("audit show truthful last-seen age",
+                    dev.ghbot.audit.AuditService.showGroup(lwAge.snapshot(), roots, 1).contains("last seen 3 min ago"));
+            check("audit show synthetic-stamp lines claim no age (no absurd minutes)",
+                    !shFull.contains("min ago"));
+            // fix knowledge base
+            var fxNone = dev.ghbot.audit.FixRules.fromString(null);
+            check("fix KB: built-in floor is broad, file rules start empty",
+                    fxNone.builtinCount() >= 15 && fxNone.custom().isEmpty() && !fxNone.hasFileRules());
+            var fxMine = dev.ghbot.audit.FixRules.fromString(
+                    "rules:\n  - id: mine\n    match: \"(?i)release\\\\(s\\\\) behind\"\n    fix: \"owner path for %s\"\n");
+            var mrMine = fxMine.match("However, you are 4 release(s) behind the latest stable release (26.2)!");
+            check("fix KB: file rules override built-ins (owner first)",
+                    mrMine != null && mrMine.id().equals("mine") && fxMine.isCustom(mrMine)
+                    && fxMine.total() == fxMine.builtinCount() + 1);
+            check("fix KB: %s renders the group source name",
+                    dev.ghbot.audit.FixRules.render(mrMine, "server").contains("owner path for server"));
+            check("fix KB: malformed yml falls back to built-ins only",
+                    dev.ghbot.audit.FixRules.fromString("rules: [1, {bad").custom().isEmpty());
+            var mrLag = dev.ghbot.audit.FixRules.fromString(
+                    "rules:\n  - id: bad\n    match: \"([\"\n    fix: \"x\"\n").match("Can't keep up! Is the server overloaded?");
+            check("fix KB: broken owner regex never throws, built-ins still answer",
+                    mrLag != null && mrLag.id().equals("tick-lag"));
+            check("fix KB: selftest maps to the nothing-to-fix rule",
+                    dev.ghbot.audit.FixRules.fromString(null)
+                            .match("audit self-test warning (listener plumbing check — safe to ignore)") != null);
+            // fix routing on real group fixtures
+            var ruleBanner = dev.ghbot.audit.AuditService.fixRuleFor(lwBanner.snapshot(), roots, 1, fxNone);
+            check("audit fix maps the Paper banner group to release-behind",
+                    ruleBanner != null && ruleBanner.id().equals("release-behind"));
+            check("audit fix out-of-range returns null (no fake advice)",
+                    dev.ghbot.audit.AuditService.fixRuleFor(lwBanner.snapshot(), roots, 9, fxNone) == null);
+            // updates detail honesty: pre-release risk notes + check age
+            String updFix = dev.ghbot.audit.AuditService.updatesDetailOf(java.util.List.of(
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("ViaBackwards", "5.11.0", "5.12.1-SNAPSHOT+634",
+                            dev.ghbot.audit.UpdateRadar.Status.BEHIND),
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("ViaRewind", "4.1.3", "4.2.0",
+                            dev.ghbot.audit.UpdateRadar.Status.BEHIND),
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("Essentials", "2.22.0", "2.22.0",
+                            dev.ghbot.audit.UpdateRadar.Status.CURRENT)),
+                    System.currentTimeMillis() - 120000);
+            check("updates detail tags ONLY pre-release targets with the risk note",
+                    updFix.contains("5.12.1-SNAPSHOT+634 ⬆ (behind!) · ⚠ pre-release")
+                    && updFix.contains("4.2.0 ⬆ (behind!)")
+                    && !updFix.contains("4.2.0 ⬆ (behind!) · ⚠"));
+            check("updates detail states the truthful check age",
+                    updFix.contains("last checked 2 min ago"));
+            check("updates detail without a stamp claims no age",
+                    !dev.ghbot.audit.AuditService.updatesDetailOf(java.util.List.of(
+                            new dev.ghbot.audit.UpdateRadar.CheckResult("Essentials", "2.22.0", "2.22.0",
+                                    dev.ghbot.audit.UpdateRadar.Status.CURRENT)), 0).contains("last checked"));
+            check("pre-release tag matches snapshot qualifiers only",
+                    dev.ghbot.audit.AuditService.preReleaseTag("2.2.5-SNAPSHOT").contains("pre-release")
+                    && dev.ghbot.audit.AuditService.preReleaseTag("2.2.7-b69").isEmpty()
+                    && dev.ghbot.audit.AuditService.preReleaseTag(null).isEmpty());
+            // auto-tool surface for show/fix
+            var atIx = dev.ghbot.agent.AutoTools.detect("audit fix 3");
+            var atFixN = dev.ghbot.agent.AutoTools.detect("how do I fix the error 2?");
+            var atShowN = dev.ghbot.agent.AutoTools.detect("show error 1");
+            check("AUTO-TOOL literal 'audit fix N' routes with the number",
+                    atIx != null && atIx.name().equals("audit")
+                    && java.util.Arrays.toString(atIx.args()).equals("[fix, 3]")
+                    && "audit fix 3".equals(atIx.display()));
+            check("AUTO-TOOL natural fix routes with exact index",
+                    atFixN != null && atFixN.name().equals("audit")
+                    && "audit fix 2".equals(atFixN.display()));
+            check("AUTO-TOOL natural show routes with exact index",
+                    atShowN != null && atShowN.name().equals("audit")
+                    && "audit show 1".equals(atShowN.display()));
+            check("AUTO-TOOL plain audit stays arg-less (regression)",
+                    aud2.args().length == 0);
+            var atRel = dev.ghbot.agent.AutoTools.detect("audit reload");
+            var atUpd = dev.ghbot.agent.AutoTools.detect("audit updates");
+            check("AUTO-TOOL literal audit sub-commands route (live catch: reload reached the AI)",
+                    atRel != null && atRel.name().equals("audit")
+                    && java.util.Arrays.toString(atRel.args()).equals("[reload]")
+                    && "audit reload".equals(atRel.display())
+                    && atUpd != null && java.util.Arrays.toString(atUpd.args()).equals("[updates]"));
         }
         // (4e) v0.25.0 — Phase C: eyes lattice + set precision loop + Good-Result pack
         {
