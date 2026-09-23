@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.ghbot"
-version = "0.23.1"
+version = "0.24.0"
 description = "GH-Bot — AI builder & editing agent for PaperMC (GH000, GH001, ...)"
 
 java {

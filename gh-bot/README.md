@@ -1,22 +1,65 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) · smoke **500/500 PASS** · jar `GHBot-0.23.1.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) · smoke **533/533 PASS** · jar `GHBot-0.24.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
 
 ---
 
-## GHBot v0.23.1 — current state & agent handoff brief (READ THIS FIRST)
+## GHBot v0.24.0 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-09-01**. The rest of the
+> read this section first. It is the verified truth as of **2026-09-23**. The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog. The next-batch plan (v0.23→v0.27) lives in
 > `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.24.0 (console-log auditor — Phase B of the owner-approved batch)
+
+- **The ask (owner re-scope):** a console AUDITOR, not a console mirror — "why we need 2
+  server logs right?" GHBot watches WARN/ERROR/FATAL, tells you *what* broke, *which
+  plugin*, *what to do*, and *what can be updated*. Nothing else.
+- **`LogWatch`** (`dev.ghbot.audit`): attaches a **reflection-only dynamic-Proxy log4j2
+  appender** to the ROOT logger config (zero compile deps; feature-off with a one-line
+  note when log4j-core is absent) → bounded ring (200), consecutive-repeat collapse ×N,
+  IPv4/ports stripped `<ip>` (privacy), 8-frame bounded stacks. CraftBukkit's JUL→log4j
+  forwarding means one appender sees **plugins + vanilla + Paper**. Detaches cleanly in
+  `onDisable`. Design cross-validated against **DiscordSRV / JDAAppender** (same root-
+  logger attach, same level gating, same `isStarted=true` lifecycle; we additionally
+  capture FATAL, which JDAAppender's level map drops, and the ring is bounded — their
+  queue is not).
+- **`AuditService.digest()`** — severity-first grouped digest, max 6 groups + radar line:
+  attribution by logger-prefix (installed plugin roots) → stack-frame fallback →
+  server-core mapping (net.minecraft/mojang/bukkit/papermc/spottedleaf + **thread-name
+  fallback** for nameless loggers — Paper's own update banner logs with NO logger name);
+  **suggestion rules** (class-not-found, java-version, enable-fail, deprecated, OOM,
+  network, TLS, generic-exception, release-behind, **AI-provider-401**) scan the WHOLE
+  group incl. stacks; mixed-line groups render truthfully (`×6, 5 lines` + the most
+  informative line — never a fake `×N` on a border frame).
+- **`UpdateRadar`** — installed-only checks, async, first pass +60 s then daily, notify
+  **quietly once** per (plugin→latest) persisted to `plugins/GHBot/updates-notified.yml`:
+  Paper via **fill v3** (`…/builds/latest` → id), Essentials via GitHub releases,
+  Geyser-Spigot / floodgate / ViaVersion / ViaBackwards / ViaRewind / LuckPerms via
+  **Modrinth v2** (loader-filtered entry pick — first entry is `-Velocity` for geyser!),
+  JSON parsed via on-classpath SnakeYAML. One console line ONLY when something is behind.
+- **Surfaces:** bot command `audit [updates|clear|selftest]` (catalog → AI tool, AUTO-TOOL
+  phrases "any errors?"/"check for updates", web, in-game, console), AI prompt usage hint,
+  `audit selftest` emits a real WARN to prove the plumbing end-to-end.
+- **Smoke 533/533** (+33): ring collapse/evict/stripIP, attribution paths, server-core map,
+  every suggestion rule, digest grouping/ordering/empty-state/banner-truthfulness/since-
+  boot age, fromThread, radar compare + modrinth/github/fill parsers + quiet-once notices +
+  line, AUTO-TOOL routing. Three mutation suites killed exactly their pins.
+- **Sandbox live run (owner build 1.21.11-132):** appender attached silently (no
+  unavailable-note) → digest live: `• server (WARN ×6, 5 lines): "However, you are 4
+  release(s) behind the latest stable release (26.2)!" — server reports a newer release
+  — schedule an update…` + `• GHBot (WARN ×5, 3 lines): "AI provider polls … HTTP 401…
+  — set a valid api-key under ai: in config.yml…"` + `updates: all current (1 checked)`
+  (fill says 132 == the owner's build). AUTO-TOOL "any errors?" → audit ✓; selftest ×3
+  collapses ✓; v0.23.1 auth matrix re-green (302 bounce, POST login, cookie ✓).
 
 ### What's new in v0.23.1 (login UX: return-to-destination)
 - **Login now lands you where you were going** (owner report: it dumped everyone on the
@@ -302,7 +345,7 @@ has to be pasted into a chat bubble.
 The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
 Never assume tooling is present. Every turn that touches code:
 1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **500 checks**):
+2. Recompile + run the smoke suite (currently **533 checks**):
    ```bash
    CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
    /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
@@ -398,7 +441,7 @@ gh-bot/
 ├── src/main/java/dev/ghbot/  (19 packages, 81 files)
 │   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
 │   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (500 checks, all passing) · setup-build.sh (sandbox toolchain restore)
+└── tools/SmokeTest.java              (533 checks, all passing) · setup-build.sh (sandbox toolchain restore)
                                        · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
 releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
                                        GitHub Releases page mirrors: only the newest release + tag exists)

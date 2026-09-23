@@ -2053,6 +2053,135 @@ public class SmokeTest {
                     && "/console".equals(formDflt.getHeaderField("Location")));
             ws.stop();
         }
+        // (4d) v0.24.0 — Phase B: console-log auditor + update radar
+        {
+            dev.ghbot.audit.LogWatch lw = new dev.ghbot.audit.LogWatch(16);
+            lw.note("test.Logger", "WARN", "user /192.168.0.20:51234 lost connection", "", 1000);
+            lw.note("test.Logger", "WARN", "user /192.168.0.20:51234 lost connection", "", 2000);
+            var ring1 = lw.snapshot();
+            check("audit ring collapse repeats (×N)", ring1.size() == 1 && ring1.get(0).count == 2 && ring1.get(0).lastTime == 2000);
+            check("audit ring strips IPs", !ring1.get(0).message.contains("192.168") && ring1.get(0).message.contains("<ip>"));
+            dev.ghbot.audit.LogWatch lw2 = new dev.ghbot.audit.LogWatch(16);
+            for (int i = 1; i <= 20; i++) lw2.note("L" + i, "WARN", "m" + i, "", i);
+            check("audit ring capacity evicts oldest", lw2.size() == 16
+                    && lw2.snapshot().get(0).logger.equals("L5") && lw2.snapshot().get(15).logger.equals("L20"));
+
+            java.util.Map<String, String> roots = new java.util.LinkedHashMap<>();
+            roots.put("com.earth2me.essentials", "Essentials");
+            roots.put("org.geysermc", "Geyser-Spigot");
+            check("audit attributes by logger prefix", dev.ghbot.audit.AuditService.attribute(
+                    "org.geysermc.geyser.platform.spigot.X", "", roots).equals("Geyser-Spigot"));
+            check("audit attributes via stack frames", dev.ghbot.audit.AuditService.attribute(
+                    "net.minecraft.server.Main",
+                    "java.lang.RuntimeException: x\nat com.earth2me.essentials.Essentials.onEnable(Essentials.java:1)",
+                    roots).equals("Essentials"));
+            check("audit maps server core", dev.ghbot.audit.AuditService.attribute(
+                    "net.minecraft.server.level.ChunkMap", "", roots).equals("server"));
+            check("audit keeps unknown logger name", dev.ghbot.audit.AuditService.attribute(
+                    "some.custom.Logger", "", roots).equals("some.custom.Logger"));
+
+            check("suggest: class-not-found → dependency hint", dev.ghbot.audit.AuditService.suggest(
+                    "Essentials", "ERROR", "java.lang.NoClassDefFoundError: org/foo/Bar", "").contains("reinstall Essentials"));
+            check("suggest: deprecated → future-update hint", dev.ghbot.audit.AuditService.suggest(
+                    "ViaVersion", "WARN", "This API is deprecated", "").contains("update"));
+            check("suggest: fallback stays watchful", dev.ghbot.audit.AuditService.suggest(
+                    "GHBot", "WARN", "totally novel thing happened", "").contains("harmless"));
+
+            dev.ghbot.audit.LogWatch lw3 = new dev.ghbot.audit.LogWatch(32);
+            lw3.note("org.geysermc.x", "WARN", "bedrock handshake oddity", "", 1000);
+            lw3.note("org.geysermc.x", "WARN", "bedrock handshake oddity", "", 2000);
+            lw3.note("net.minecraft.server.Main", "ERROR", "java.lang.NoClassDefFoundError: com/earth2me/essentials/Foo",
+                    "at com.earth2me.essentials.Essentials.onEnable(Essentials.java:1)", 3000);
+            String dg = dev.ghbot.audit.AuditService.buildDigest(lw3.snapshot(), roots, null,
+                    System.currentTimeMillis() - 60000);
+            check("digest groups per source with counts", dg.contains("Geyser-Spigot") && dg.contains("×2"));
+            check("digest orders ERROR groups first", dg.indexOf("Essentials (") < dg.indexOf("Geyser-Spigot ("));
+            check("digest carries suggestion + radar-pending line", dg.contains("reinstall") && dg.contains("updates: checking"));
+            String dgEmpty = dev.ghbot.audit.AuditService.buildDigest(java.util.List.of(), roots, null, 0);
+            check("digest empty state says clean", dgEmpty.contains("clean"));
+            check("same-message group quote carries honest ×N", dg.contains("oddity\" ×2"));
+
+            // v0.24.0 live-polish (sandbox Paper run): Paper's update banner logs WITHOUT
+            // a logger name (digest showed "?"), and its 6-DISTINCT-line banner lied
+            // as if the border line repeated "×6". Pins against both.
+            check("thread fallback names blank loggers",
+                    dev.ghbot.audit.LogWatch.fromThread("Paper Async Task Handler Thread - 1").equals("PaperMC")
+                    && dev.ghbot.audit.LogWatch.fromThread("Netty Epoll Server IO #2").equals("netty-io")
+                    && dev.ghbot.audit.LogWatch.fromThread("Server thread").equals("Server")
+                    && dev.ghbot.audit.LogWatch.fromThread(null).equals("?"));
+            check("thread-derived logger attributes to server",
+                    dev.ghbot.audit.AuditService.attribute("PaperMC", "", roots).equals("server"));
+            check("suggest: release-behind banner → update-plan hint",
+                    dev.ghbot.audit.AuditService.suggest("server", "WARN",
+                            "However, you are 4 release(s) behind the latest stable release (26.2)!", "")
+                            .contains("schedule an update"));
+            check("suggest: provider 401 → api-key hint (seen live: polls needs a key now)",
+                    dev.ghbot.audit.AuditService.suggest("GHBot", "WARN",
+                            "AI provider polls stream failed — trying next: OpenAI HTTP 401: {\"code\":\"UNAUTHORIZED\"}", "")
+                            .contains("api-key"));
+            dev.ghbot.audit.LogWatch lwBanner = new dev.ghbot.audit.LogWatch(32);
+            lwBanner.note("", "WARN", "************************************************", "", 1000);
+            lwBanner.note("", "WARN", "You are running the latest build for your Minecraft version (1.21.11)", "", 1001);
+            lwBanner.note("", "WARN", "However, you are 4 release(s) behind the latest stable release (26.2)!", "", 1002);
+            lwBanner.note("", "WARN", "It is recommended that you update as soon as possible", "", 1003);
+            lwBanner.note("", "WARN", "https://papermc.io/downloads/paper", "", 1004);
+            lwBanner.note("", "WARN", "************************************************", "", 1005);
+            String dgBanner = dev.ghbot.audit.AuditService.buildDigest(lwBanner.snapshot(), roots, null, 0);
+            check("digest mixed banner states true line count + informative quote",
+                    dgBanner.contains("×6, 5 lines")
+                    && !dgBanner.contains("****\"")
+                    && dgBanner.contains("\"However, you are 4 release(s) behind the latest stable release (26.2)!\""));
+            check("digest without a real boot stamp says since-boot",
+                    dgBanner.contains("since boot") && !dgBanner.contains("29835578"));
+            check("digest mixed banner never fakes a ×N repeat",
+                    !dgBanner.contains("(WARN ×6):") && !dgBanner.contains("***\" ×6"));
+            // hay-coverage fixture: representative line matches NO rule by itself, so
+            // the hit can only come from scanning the whole group (message + stack)
+            dev.ghbot.audit.LogWatch lwHay = new dev.ghbot.audit.LogWatch(32);
+            lwHay.note("com.example.X", "ERROR", "something noisy but otherwise quite generic and rather long indeed", "", 1000);
+            lwHay.note("com.example.X", "ERROR", "boom",
+                    "java.lang.NoClassDefFoundError: org/foo/Bar\nat com.example.X.run(X.java:1)", 1001);
+            String dgHay = dev.ghbot.audit.AuditService.buildDigest(lwHay.snapshot(), roots, null, 0);
+            check("digest suggestion scans whole group incl. stacks",
+                    dgHay.contains("rather long indeed") && dgHay.contains("reinstall"));
+
+            check("radar compare behind/current/ahead/unknown",
+                    dev.ghbot.audit.UpdateRadar.compare("2.11.1", "2.11.3-b1245") == dev.ghbot.audit.UpdateRadar.Status.BEHIND
+                    && dev.ghbot.audit.UpdateRadar.compare("2.22.0", "2.22.0") == dev.ghbot.audit.UpdateRadar.Status.CURRENT
+                    && dev.ghbot.audit.UpdateRadar.compare("2.22.1", "2.22.0") == dev.ghbot.audit.UpdateRadar.Status.AHEAD
+                    && dev.ghbot.audit.UpdateRadar.compare("snapshot-junk", "1.0") == dev.ghbot.audit.UpdateRadar.Status.UNKNOWN);
+            String modrinthFx = "[{\"version_number\":\"2.11.3-b1245\",\"loaders\":[\"velocity\"]},"
+                    + "{\"version_number\":\"2.11.3\",\"loaders\":[\"paper\",\"spigot\"]},"
+                    + "{\"version_number\":\"2.11.2\",\"loaders\":[\"paper\"]}]";
+            check("modrinth picks first preferred-loader entry", "2.11.3".equals(
+                    dev.ghbot.audit.UpdateRadar.modrinthLatest(modrinthFx, java.util.Set.of("paper", "spigot", "bukkit"))));
+            check("modrinth falls back to first when loaders miss", "2.11.3-b1245".equals(
+                    dev.ghbot.audit.UpdateRadar.modrinthLatest(modrinthFx, java.util.Set.of("geyserconnect"))));
+            check("github latest tag parse", "2.22.0".equals(dev.ghbot.audit.UpdateRadar.githubTag(
+                    "{\"tag_name\":\"2.22.0\",\"name\":\"EssentialsX 2.22.0\"}")));
+            check("fill latest paper build parse", dev.ghbot.audit.UpdateRadar.paperBuildFromFill(
+                    "{\"id\":132,\"time\":\"x\",\"channel\":\"STABLE\"}") == 132);
+
+            java.util.List<dev.ghbot.audit.UpdateRadar.CheckResult> rMix = java.util.List.of(
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("Geyser-Spigot", "2.11.1", "2.11.3", dev.ghbot.audit.UpdateRadar.Status.BEHIND),
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("Essentials", "2.22.0", "2.22.0", dev.ghbot.audit.UpdateRadar.Status.CURRENT));
+            java.util.Map<String, String> prev = new java.util.LinkedHashMap<>();
+            check("radar notices fresh behinds only", dev.ghbot.audit.UpdateRadar.freshNotices(rMix, prev).size() == 1);
+            prev.put("Geyser-Spigot", "2.11.3");
+            check("radar does not re-notify same latest", dev.ghbot.audit.UpdateRadar.freshNotices(rMix, prev).isEmpty());
+            check("radar re-notifies on newer latest", dev.ghbot.audit.UpdateRadar.freshNotices(java.util.List.of(
+                    new dev.ghbot.audit.UpdateRadar.CheckResult("Geyser-Spigot", "2.11.1", "2.11.4",
+                            dev.ghbot.audit.UpdateRadar.Status.BEHIND)), prev).size() == 1);
+            check("radar line shows the upgrade", dev.ghbot.audit.UpdateRadar.line(rMix).contains("Geyser-Spigot 2.11.1 → 2.11.3"));
+
+            var aud1 = dev.ghbot.agent.AutoTools.detect("any errors?");
+            var aud2 = dev.ghbot.agent.AutoTools.detect("audit");
+            var aud3 = dev.ghbot.agent.AutoTools.detect("check for updates");
+            check("AUTO-TOOL phrases route to audit", aud1 != null && aud1.name().equals("audit")
+                    && aud2 != null && aud2.name().equals("audit")
+                    && aud3 != null && aud3.name().equals("audit")
+                    && aud3.args().length == 1 && aud3.args()[0].equals("updates"));
+        }
         // (5) AUDIT P1-1: template bbox Y/Z transposition — fixtures must be ASYMMETRIC
         //     (old suites only used Y/Z-symmetric fixtures, so the swap was invisible)
         {

@@ -32,7 +32,22 @@ GitHub Release mirror. Owner answers from chat are quoted inline.
 - **Owner acceptance:** open :8580 → login page; paste WEB-token from
   server.log; everything works as before.
 
-## Phase B — v0.24.0 · Console-log auditor ("GHBot audits FOR you")
+## Phase B — v0.24.0 · Console-log auditor ("GHBot audits FOR you") — ✅ SHIPPED (2026-09-23)
+
+> **Shipped evidence:** sandbox live run on the owner build (Paper 1.21.11-132) — reflection-only
+> log4j appender attached silently; digest live via AUTO-TOOL "any errors?": `• server (WARN ×6,
+> 5 lines): "However, you are 4 release(s) behind the latest stable release (26.2)!" — server
+> reports a newer release…` · `• GHBot (WARN ×5, 3 lines): "…HTTP 401…" — set a valid api-key…` ·
+> `updates: all current (1 checked)` (132 == fill latest). selftest ×3 collapse + attribution ✓;
+> auth matrix re-green ✓. **3 live-polish catches baked in:** thread-name fallback for nameless
+> loggers (Paper's banner), truthful distinct-line rendering (no fake "×N" on banner frames),
+> suggestion rules scan the whole group + AI-401 rule (polls now requires a key). Owner-suggested
+> **DiscordSRV/JDAAppender deep-research** validated the design (same root-attach; GHBot keeps
+> FATAL + bounded ring). Smoke **533/533** (+33, three mutation suites killed exactly their pins).
+> Details → root/§17 changelog + `gh-bot/README.md` "What's new in v0.24.0". `GHBot-0.24.0.jar`
+> in `releases/` (0.23.1 deleted); GitHub Release `v0.24.0` mirrors (0.23.1 release+tag deleted).
+
+
 
 > Owner: "GHBot will only tell if there's error, warning and updates of any
 > plugin or even the papermc… audit the server console logs then tell me what
