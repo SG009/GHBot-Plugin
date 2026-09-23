@@ -64,6 +64,7 @@ public class GHBotPlugin extends JavaPlugin {
     private LocationStore locations;
     private WebStatusServer webServer;
     private dev.ghbot.web.WebAuthService webAuth;   // v0.23.0 — Q3 web-console login token (null when web disabled)
+    private dev.ghbot.audit.AuditService auditService;   // v0.24.0 — Phase B console-log auditor + update radar
     private ProviderRegistry providers;
     private ChatService chatService;
     private BuildService buildService;
@@ -116,6 +117,7 @@ public class GHBotPlugin extends JavaPlugin {
         editService2 = new EditService(this, log, editService.undo(), cfg.editBlocksPerTick()); // Phase 10 — structure editing
         commandLearning = new CommandLearning(this, log);  // Phase 11 — command learning
         commandLearning.setCapture(new dev.ghbot.command.CmdOutputCapture(this, log, commandLearning)); // v0.22.2 — Pillar 3 cmd output capture
+        auditService = new dev.ghbot.audit.AuditService(this, log);      // v0.24.0 — Phase B log auditor
         adminService = new AdminService(getDataFolder().getParentFile().toPath(), log, getDataFolder().toPath(), this); // Phase 11b — admin ops (owner enables reload health-check guard)
         dataset = new LearningDataset(getDataFolder().toPath(), log);      // Phase 8b — learning dataset
         downloader = new SchematicDownloader(log);
@@ -127,6 +129,7 @@ public class GHBotPlugin extends JavaPlugin {
         for (GHBot bot : registry.all()) {
             registerBot(bot);   // also loads session + restores markers (Phase 12)
         }
+        auditService.start();   // v0.24.0 — attach log listener + schedule update radar (after plugins load)
 
         // Phase 14 — multi-bot crew commands (deploy/undeploy/workers)
         registerCrewCommands();
@@ -479,6 +482,7 @@ public class GHBotPlugin extends JavaPlugin {
         PreviewCommands.register(bot, bridge, previews, schematics, cfg.webEnabled() ? cfg.webPort() : -1);
         EditCommands.register(bot, bridge, editService2, providers, log);
         CommandLearningCommands.register(bot, bridge, commandLearning);
+        dev.ghbot.audit.AuditCommands.register(bot, bridge, auditService);   // v0.24.0 — Phase B
         AdminCommands.register(bot, bridge, adminService);
         AvatarCommands.register(bot, bridge, avatarService, markerService);
         // null-guard: sessions is created before the first registerBot() in onEnable,
@@ -558,6 +562,7 @@ public class GHBotPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (auditService != null) { auditService.stop(); auditService = null; }   // v0.24.0
         if (webServer != null) { webServer.stop(); webServer = null; }
         if (bridge != null) bridge.shutdown();
         if (sampler != null) {

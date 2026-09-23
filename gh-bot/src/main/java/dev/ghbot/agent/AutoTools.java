@@ -58,6 +58,14 @@ public final class AutoTools {
             return new Call("scan", args, "scan " + String.join(" ", args));
         }
 
+        // ── audit (v0.24.0): "audit", "any errors?", "server problems?", "check updates" ──
+        if (low.matches("^(audit|audit now|server audit|check errors|any errors\\??.*|server problems\\??.*|"
+                + "what'?s wrong( with the server)?\\??.*|updates available\\??.*|check (for )?updates.*)$")) {
+            boolean upd = low.contains("update");
+            return new Call("audit", upd ? new String[]{"updates"} : new String[0],
+                    upd ? "audit updates" : "audit");
+        }
+
         // ── find: "find <block> [radius]" ──
         Matcher mf = Pattern.compile("find\\s+([a-z0-9_:]+)(?:\\s+(\\d+))?").matcher(low);
         if (low.startsWith("find") && mf.find()) {
