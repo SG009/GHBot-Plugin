@@ -2888,6 +2888,28 @@ public class SmokeTest {
                     dev.ghbot.command.CommandScript.drop("GH000") != null
                     && !dev.ghbot.command.CommandScript.hasPending("GH000"));
 
+            // ── v0.28.1 — parsePlayerName false-positive fix (live: pasting the file
+            // filled "op your" from the comment "replace YOURNAME with your Minecraft
+            // username" → LuckPerms user literally named "your") ──
+            check("parsePlayerName: real name still works (dot-IGN + i'm)",
+                    ".SerthGembel009".equals(dev.ghbot.command.CommandScript.parsePlayerName("my name is .SerthGembel009"))
+                    && "Steve".equals(dev.ghbot.command.CommandScript.parsePlayerName("i'm Steve")));
+            check("parsePlayerName: comment prose is NOT a name (live bug)",
+                    dev.ghbot.command.CommandScript.parsePlayerName("replace YOURNAME with your Minecraft username") == null
+                    && dev.ghbot.command.CommandScript.parsePlayerName("skip the boss") == null
+                    && dev.ghbot.command.CommandScript.parsePlayerName("drop the script") == null);
+            check("parsePlayerName: word boundary (ign/use inside words)",
+                    dev.ghbot.command.CommandScript.parsePlayerName("align Steve") == null
+                    && dev.ghbot.command.CommandScript.parsePlayerName("align the stars") == null
+                    && dev.ghbot.command.CommandScript.parsePlayerName("because use case matters") == null);
+            if (!setupTxt.isEmpty()) {
+                var planPasted = dev.ghbot.command.CommandScript.plan(parsed, setupTxt);
+                check("script plan: pasting the file itself does NOT fill 'your' (live bug)",
+                        planPasted.needFill().size() == 3
+                        && planPasted.toRun().stream().noneMatch(L -> L.command().equals("op your"))
+                        && planPasted.toRun().stream().noneMatch(L -> L.command().contains("user your")));
+            }
+
             var atRun = dev.ghbot.agent.AutoTools.detectScript("run", true);
             var atSkip = dev.ghbot.agent.AutoTools.detectScript("skip step 6", true);
             var atName = dev.ghbot.agent.AutoTools.detectScript("my name is .SerthGembel009", true);
@@ -2909,6 +2931,7 @@ public class SmokeTest {
             check("capability guide + tool help tell the AI not to cmd the file",
                     dev.ghbot.ai.CapabilityGuide.text().contains("script run")
                     && dev.ghbot.ai.CapabilityGuide.text().contains("Do NOT dump")
+                    && dev.ghbot.ai.CapabilityGuide.text().contains("they mean RUN it")
                     && dev.ghbot.agent.ToolProtocol.helpText().contains("script [run|status|drop]")
                     && dev.ghbot.ai.ChatService.systemPrompt().contains("PREVIEWED first"));
 

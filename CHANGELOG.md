@@ -2,6 +2,20 @@
 
 All notable changes to GHBot-Plugin are documented in this file.
 
+## [v0.28.1] - 2026-09-24
+
+### parsePlayerName false-positive fix (live-caught from owner evidence)
+
+Pasting the script's own text into chat (instead of uploading) filled `op YOURNAME` with **`op your`** — because `parsePlayerName` matched the comment "replace YOURNAME with **your** Minecraft username" and filled every YOURNAME with "your". Result on the owner's server: a LuckPerms user literally named `your` got the admin parent, and `op your` was (correctly) CONF-blocked.
+
+- Reject `your` / `my` / `the` as player names (common comment prose)
+- Add `\b` word boundary so `ign`/`use` can't match inside words ("align Steve", "because use case")
+- `use` now requires `use player <name>` / `use name <name>` (bare `use <word>` too collision-prone)
+- CapabilityGuide: when a fill/skip message also says "drop the script" AND "run", run — only `script drop` when clearly discarding
+- Smoke **646/646** (+4 over v0.28.0). Mutations G/H/I each killed exactly their pins.
+
+---
+
 ## [v0.28.0] - 2026-09-24
 
 ### Command-Script Upload (📎 .txt/.cmd/.mcfunction PREVIEW first)

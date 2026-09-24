@@ -1,6 +1,6 @@
 # GHBot Plugin — Developer Handoff Brief
 
-**Current version**: v0.28.0 · **Smoke suite**: 642/642 PASS · **Status**: Production-ready
+**Current version**: v0.28.1 · smoke **646/646 PASS** · **Status**: Production-ready · **jar**: `GHBot-0.28.1.jar`
 
 This document is for AI agents and developers taking over this project. It describes the current state, architecture, and workflow.
 
@@ -73,14 +73,14 @@ cd gh-bot
 # Build
 ./gradlew jar
 
-# Smoke suite (642 checks)
+# Smoke suite (646 checks)
 bash tools/setup-build.sh jar
 CP="build/libs/GHBot-*.jar:$(find ~/.gradle/caches -name '*.jar' | grep -v sources | tr '\n' ':')"
 javac -proc:none -nowarn -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
 java -Xmx384M -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest
 
 # Doc consistency
-bash tools/check-docs.sh 642
+bash tools/check-docs.sh 646
 ```
 
 ### Ship
@@ -156,11 +156,11 @@ Revival = remove from SHELVED + re-add CATALOG + update contract pins. **Do not 
 
 - `GHBotPlugin.java` — Main plugin class, registers all commands
 - `ChatService.java` — AI chat sessions, stop button, vision
-- `CommandScript.java` — Command-script upload (v0.28.0)
+- `CommandScript.java` — Command-script upload (v0.28.1)
 - `WebStatusServer.java` — Embedded HTTP server, auth, upload route
 - `CapabilityGuide.java` — AI tool knowledge (injected into system prompt)
 - `ToolProtocol.java` — Tool protocol documentation
-- `SmokeTest.java` — 642 headless checks
+- `SmokeTest.java` — 646 headless checks
 
 ## Contact
 
@@ -170,4 +170,4 @@ Revival = remove from SHELVED + re-add CATALOG + update contract pins. **Do not 
 
 ---
 
-**Last updated**: 2026-09-24 · **Version**: v0.28.0
+**Last updated**: 2026-09-24 · **Version**: v0.28.1

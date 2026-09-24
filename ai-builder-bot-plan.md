@@ -947,6 +947,14 @@ Your original 9 files stay in the workspace (`/home/user/uploads/`) as the refer
   - `GHBot-0.28.0.jar` shipped (0.27.2 deleted per policy; GitHub Release mirrors — token needed).
   - **Phase E queue complete. No next phase approved.**
 
+- **v0.28.1 — parsePlayerName false-positive fix (live-caught from owner evidence) — ✅**:
+  - **Live bug:** owner pasted `setup_commands.txt`'s own text into chat → AUTO-TOOL `script amend` → `parsePlayerName` matched the comment "replace YOURNAME with **your** Minecraft username" → filled every YOURNAME with "your". `commands.txt` shows `op your` (BLOCKED ✓) but also `lp user your parent add admin → ok` — a LuckPerms user literally named `your` got the admin parent.
+  - **Fix:** reject `your`/`my`/`the` as names; add `\b` word boundary so `ign`/`use` can't match inside words ("align Steve", "because use case"); `use` now requires `use player <name>` / `use name <name>`.
+  - **Guide:** CapabilityGuide now says when a fill/skip message also contains "drop the script" AND "run", RUN it — only `script drop` when clearly discarding (the live session showed the AI reading "skip the boss and drop the script. Then run" as a drop, deleting the pending script).
+  - **Smoke 646/646** (+4 over v0.28.0): comment prose is not a name (the live bug) · pasting the file itself does not fill "your" · word boundary (`align Steve` / `align the stars` / `because use case matters` all null) · guide "they mean RUN it" drift-guard.
+  - Mutations G (allow your/my/the) → killed 2 pins · H (remove `\b`) → killed word-boundary pin · I (loosen `use`) → killed word-boundary pin. Each killed exactly its pins.
+  - `GHBot-0.28.1.jar` shipped (0.28.0 deleted per policy; GitHub Release mirrors).
+
 - **v0.27.2 — PHASE E item 2: vision auto-verify loop — ✅**:
   - Opt-in `build.verify-vision` (default OFF). After staging, isometric PNG → vision checklist JSON (`ok/reason/notes`). AI builds: ONE repair restage. Pasted JSON specs = the contract (notes only, never rewritten). Text-only Ollama skipped even if the transport accepts images. Live-caught: read verify-vision from the `build` YAML section; WIB-log because async console sendMessage is silent; `attachVision` at enable not only reload.
   - Smoke **620/620 PASS** (+13); mutations G/H/I killed their pins. Live on Paper 1.21.11-132: `flag=true hasVision=false skip=no-provider` + honest skip naming Gemini / llava / qwen2-vl.

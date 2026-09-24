@@ -246,17 +246,21 @@ public final class CommandScript {
         return out;
     }
 
-    /** Player / IGN from an admin prompt. Null when none. */
+    /** Player / IGN from an admin prompt. Null when none.
+     *  v0.28.1 — hardened: leading \b so "ign"/"use" can't match inside words
+     *  ("align"/"because"), and reject "your"/"my"/"the" so pasting the file's own
+     *  comments ("replace YOURNAME with your Minecraft username") never fills "your". */
     public static String parsePlayerName(String prompt) {
         if (prompt == null || prompt.isBlank()) return null;
         Matcher m = Pattern.compile(
-                "(?i)(?:my\\s+name\\s+is|i(?:['’]m|\\s+am)|ign\\s*[:=]?|player(?:\\s+name)?\\s*[:=]|"
+                "(?i)\\b(?:my\\s+name\\s+is|i(?:['’]m|\\s+am)|ign\\s*[:=]?|player(?:\\s+name)?\\s*[:=]|"
                         + "user(?:name)?\\s*[:=]|yourname\\s*(?:is|=)|replace\\s+yourname\\s+with|"
-                        + "use(?:\\s+player|\\s+name)?)\\s+([.\\w-]{2,32})")
+                        + "use\\s+(?:player|name))\\s+([.\\w-]{2,32})")
                 .matcher(prompt.trim());
         if (m.find()) {
             String n = m.group(1).replaceAll("[^\\w.-]+$", "");
-            if (n.length() >= 2 && !n.equalsIgnoreCase("skip") && !n.equalsIgnoreCase("step")) return n;
+            if (n.length() >= 2 && !n.equalsIgnoreCase("skip") && !n.equalsIgnoreCase("step")
+                    && !n.equalsIgnoreCase("your") && !n.equalsIgnoreCase("my") && !n.equalsIgnoreCase("the")) return n;
         }
         // Bedrock-style ".Name" as the whole prompt
         String t = prompt.trim();

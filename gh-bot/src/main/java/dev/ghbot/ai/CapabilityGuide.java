@@ -61,6 +61,10 @@ public final class CapabilityGuide {
               (comments stripped, YOURNAME flagged, systemic lines still CONF). Do NOT dump
               the file through cmd yourself — wait for the admin to say run / fill the name
               / skip a step, then ⟦tool:script run⟧. Never invent extra commands not in the file.
+              If the admin's message combines fill/skip with "drop the script" AND "run" (e.g.
+              "skip the boss and drop the script. then run"), they mean RUN it — do the fill/skip
+              then ⟦tool:script run⟧; only ⟦tool:script drop⟧ when they clearly want to discard
+              without running.
 
             ── REVIEW FLOW ──
             After you build, the user reviews in the 3D viewer (the /view URL in your reply) or in-game.

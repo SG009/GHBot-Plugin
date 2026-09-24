@@ -1,6 +1,6 @@
 # GHBot-Plugin
 
-**AI-powered builder and admin agent for PaperMC servers**
+**AI-powered builder and admin agent for PaperMC servers** · v0.28.1 · smoke 646/646 PASS · jar `GHBot-0.28.1.jar`
 
 [![Release](https://img.shields.io/github/v/release/SG009/GHBot-Plugin)](https://github.com/SG009/GHBot-Plugin/releases/latest)
 [![License](https://img.shields.io/github/license/SG009/GHBot-Plugin)](LICENSE)
@@ -38,7 +38,7 @@ GHBot is a hands-off AI assistant that manages your Minecraft server and handles
 
 ## Installation
 
-1. Download `GHBot-0.28.0.jar` from [Releases](https://github.com/SG009/GHBot-Plugin/releases/latest)
+1. Download `GHBot-0.28.1.jar` from [Releases](https://github.com/SG009/GHBot-Plugin/releases/latest)
 2. Place in your `plugins/` folder
 3. Restart the server
 4. Access the web console at `http://<server-ip>:8580/console`
@@ -77,7 +77,7 @@ GHBot previews the commands, flags `YOURNAME` as a placeholder, and waits for yo
 
 ## Documentation
 
-- **[COMMANDS.md](gh-bot/COMMANDS.md)** — Complete command reference (v0.28.0)
+- **[COMMANDS.md](gh-bot/COMMANDS.md)** — Complete command reference (v0.28.1)
 - **[gh-bot/README.md](gh-bot/README.md)** — Developer handoff brief & current state
 - **[CHANGELOG.md](CHANGELOG.md)** — Version history and what's new
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute
@@ -111,22 +111,22 @@ cd gh-bot
 
 ### Test
 ```bash
-# Smoke suite (642 checks)
+# Smoke suite (646 checks)
 cd gh-bot
 bash tools/setup-build.sh jar
-java -cp "build/libs/GHBot-0.28.0.jar:$(find ~/.gradle/caches -name '*.jar' | tr '\n' ':')" \
+java -cp "build/libs/GHBot-0.28.1.jar:$(find ~/.gradle/caches -name '*.jar' | tr '\n' ':')" \
   -cp tools/SmokeTest.java dev.ghbot.SmokeTest
 ```
 
 ### Ship
 ```bash
 # Bump version in build.gradle.kts
-bash tools/check-docs.sh 642  # verify docs match smoke count
-cp build/libs/GHBot-0.28.0.jar ../releases/
-git add -A && git commit -m "v0.28.0 — description"
-git tag v0.28.0
+bash tools/check-docs.sh 646  # verify docs match smoke count
+cp build/libs/GHBot-0.28.1.jar ../releases/
+git add -A && git commit -m "v0.28.1 — description"
+git tag v0.28.1
 git push origin main --tags
-bash tools/github-release.sh 0.28.0 "Title" /tmp/notes.md <commit-sha>
+bash tools/github-release.sh 0.28.1 "Title" /tmp/notes.md <commit-sha>
 ```
 
 ## Requirements
@@ -146,4 +146,4 @@ Built and maintained by [SG009](https://github.com/SG009) with assistance from A
 
 ---
 
-**Current version**: v0.28.0 · **Smoke suite**: 642/642 PASS · **Status**: Production-ready
+**Current version**: v0.28.1 · **Smoke suite**: 646/646 PASS · **Status**: Production-ready
