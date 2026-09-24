@@ -41,6 +41,11 @@ public final class CommandLearningCommands {
             }
         }, CommandRegistry.Meta.of("Run server commands as console (multi via ';', systemic need confirm)", "cmd <command> [; command; …]"));
 
+        r.register("script", (b, ctx) -> {
+            String msg = CommandScript.handle(b, learning, ctx.args());
+            ctx.sender().sendMessage("§7[" + b.id() + "] " + msg.replace("\n", "\n§7"));
+        }, CommandRegistry.Meta.of("Preview/run/drop a pending uploaded command-script", "script [run|status|drop]"));
+
         r.register("confirm", (b, ctx) -> {
             if (ctx.args().length < 1) {
                 ctx.sender().sendMessage("§eUsage: " + b.id() + " confirm <CONF-token> — e.g. after a blocked systemic command.");

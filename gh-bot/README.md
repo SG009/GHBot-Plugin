@@ -1,6 +1,6 @@
 # GH-Bot — AI Builder & Admin Agent for PaperMC
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) + v0.27.2 vision auto-verify (opt-in `build.verify-vision`, 1 repair pass, pasted JSON is the contract) · smoke **620/620 PASS** · jar `GHBot-0.27.2.jar`**
+**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) + v0.27.2 vision auto-verify (opt-in `build.verify-vision`, 1 repair pass, pasted JSON is the contract) + v0.28.0 command-script upload (📎 .txt/.cmd/.mcfunction PREVIEW first — parser is the contract for the lines, admin fills YOURNAME / skips steps / says run, never auto-runs; script tool + auto-tool + CATALOG/tool-sheet wiring so the AI can't cmd the file itself) · smoke **642/642 PASS** · jar `GHBot-0.28.0.jar`**
 
 > **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
 > Minecraft server and/or in-game designs — while you can't play the game or handle the server.
@@ -10,13 +10,33 @@
 ## GHBot v0.27.2 — current state & agent handoff brief (READ THIS FIRST)
 
 > If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-09-23** (v0.27.2). The rest of the
+> read this section first. It is the verified truth as of **2026-09-24** (v0.28.0). The rest of the
 > README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
 > per-version changelog. The next-batch plan (v0.23→v0.27) lives in
 > `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
 > `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
 > `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
 > `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+
+### What's new in v0.28.0 (command-script upload — 📎 .txt / .cmd / .mcfunction)
+
+- **Upload a command list → PREVIEW first, never auto-run.** The 📎 button now accepts
+  `.txt` / `.cmd` / `.mcfunction` alongside `.json` and images. GHBot parses the file
+  (comments stripped, order kept, leading `/` stripped, trailing `# comment` dropped),
+  shows purpose / command count / which lines still need filling, and waits for you.
+  Parser is the CONTRACT — the Technician never invents extra server commands.
+- **Fill / skip / drop via chat:** `my name is .SerthGembel009` fills YOURNAME on every
+  line · `skip step 6` drops an entire `# 6) …` section · `skip the boss` matches section
+  titles · `drop the script` forgets the pending file. All three are AUTO-TOOL detected —
+  plain "run" works while a script is pending.
+- **CONF guards still apply** — `op`, `stop`, `reload`, `whitelist`, etc. mint a CONF
+  token at run-time, same as typing `cmd op Steve` by hand. Nothing is bypassed.
+- **The AI is told not to cmd the file itself** — CapabilityGuide + ToolProtocol both say
+  "📎 .txt command scripts are PREVIEWED first (never auto-run)… Do NOT dump the file
+  through cmd yourself". Pinned in smoke.
+- **Smoke 642/642** (+22 over v0.27.2). Mutations G/H/I each kill exactly their pins.
+- **Live check planned:** owner uploads `setup_commands.txt` → sees purpose + 27 commands
+  + YOURNAME holes → says "my name is .SerthGembel009" → "skip step 6" → "run".
 
 ### What's new in v0.27.2 (Phase E item 2 — vision auto-verify loop)
 
@@ -33,7 +53,35 @@
 - **Live-caught:** `build.verify-vision` must be read from the `build` YAML *section* (not the
   dotted path); console `sendMessage` from the HTTP thread is silent → always WIB-log; wire
   `attachVision` at **enable** not only `/gh reload`.
-- **Smoke 620/620** (+13). Mutations G (garbage→repair) / H (skipReason always-run) / I (repairPrompt
+### What's new in v0.28.0 (command-script upload — 📎 .txt / .cmd / .mcfunction)
+
+- **Upload a command list → PREVIEW first, never auto-run.** The 📎 button now accepts
+  `.txt` / `.cmd` / `.mcfunction` alongside `.json` and images. GHBot parses the file
+  (comments stripped, order kept, leading `/` stripped, trailing `# comment` dropped),
+  shows purpose / command count / which lines still need filling, and waits for you.
+- **Parser is the contract** — same idea as a pasted JSON build spec. The Technician and
+  admin prompt only FILLS placeholders and SKIPS steps — they never invent extra server
+  commands. YOURNAME / `<player>` / `{name}` / `TODO` / `CHANGEME` are flagged; `run`
+  **refuses** while any remain.
+- **Fill / skip / drop via chat:** "my name is .SerthGembel009" fills YOURNAME on every
+  line · `skip step 6` drops an entire `# 6) …` section · `skip the boss` matches section
+  titles · `drop the script` forgets the pending file. All three are AUTO-TOOL detected —
+  plain "run" works while a script is pending.
+- **CONF guards still apply** — `op`, `stop`, `reload`, `whitelist`, etc. mint a CONF
+  token at run-time, same as typing `cmd op Steve` by hand. Nothing is bypassed.
+- **Dispatches through `cmd`'s per-line capture** — you get real command output + full
+  text in `logs/cmd/<file>.log` for long replies. No separate code path that could drift.
+- **The AI is told not to cmd the file itself** — CapabilityGuide + ToolProtocol both
+  say "📎 .txt command scripts are PREVIEWED first (never auto-run)… Do NOT dump the file
+  through cmd yourself — wait for the admin to say run". Pinned in smoke.
+- **Smoke 642/642** (+22 over v0.27.2). Mutations coming up: G / H / I each kill exactly
+  their pins.
+- **Live check planned:** owner uploads `setup_commands.txt` → sees purpose + 27 commands
+  + YOURNAME holes → says "my name is .SerthGembel009" → "skip step 6" → "run".
+
+### What's new in v0.27.2 (Phase E item 2 — vision auto-verify loop)
+
+- **Opt-in post-stage vision checklist** (`build.verify-vision: true`, **default OFF** so we never
   drops original) killed their pins. Live: `flag=true hasVision=false skip=no-provider` + honest skip line.
 - Write-up: `docs/RESEARCH-vision-verify.md`.
 

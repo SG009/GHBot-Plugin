@@ -1,4 +1,4 @@
-# GH-Bot — Command Reference (v0.27.2 · JARVIS-FOR-ADMIN)
+# GH-Bot — Command Reference (v0.28.0 · JARVIS-FOR-ADMIN)
 
 Source of truth: `BotCommands.CATALOG` (also feeds `/gh help`, `/api/tools`, the AI tool sheet).
 Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type it or use `/cmd`.
@@ -52,6 +52,7 @@ Prefix in-game: `@GH000 <cmd>` · from console: `gh <cmd>` · web console: type 
 | `audit [updates\|show <n>\|fix <n>\|reload\|clear\|selftest]` | **v0.24.0/v0.26.0** — server-console audit: numbered WARN/ERROR digest per plugin (attribution + one practical hint per group) · `show <n>` browses FULL lines+stacks of group #n · `fix <n>` hands the practical fix from **plugins/GHBot/audit-fixes.yml** (owner rules beat the 19 built-ins; clearly-labeled AI guess when nothing matches) · `reload` re-reads the KB without a restart · `updates` = instant table + check age + pre-release risk notes |
 | `webtoken` | Regenerate/show the web-console login token (`WEB-…`) — op-only; new token prints to the op AND the server console; kills all web sessions (v0.23.0) |
 | `admin <read\|set\|backup\|restore\|rollback\|reload\|menu> …` | Safe config editing (backup+validate+rollback) |
+| `script [run\|status\|drop]` | **v0.28.0** — preview/run/drop a pending 📎 command-script (.txt/.cmd/.mcfunction). Upload only PARSES + previews; `run` refuses while placeholders (`YOURNAME`, `<player>`, `<name>`, `{name}`, `TODO`/`CHANGEME`) remain; fill via chat ("my name is .SerthGembel009"), skip via `skip step 6` / `skip the boss` / `skip the starter weapon`, drop to forget. Systemic lines (op/stop/reload/whitelist…) still mint CONF tokens at run-time. Dispatches the ready lines through `cmd`'s per-line capture so you get real output + `logs/cmd/*.log` refs |
 | `cmd <command> [; command; …]` | Run server commands as console (audited; systemic → CONF token). **v0.22.2:** the reply includes the command's **real output** — sender-feed (legacy/Adventure/bungee all captured) + bounded `console-log:` lines for plugins that log instead of replying; long output truncates inline → full text in `logs/cmd/<file>.log`. **v0.22.3:** dispatch goes through Paper's `FeedbackForwardingSender` (the only sender type 1.21's dispatcher accepts userdata for) — commands actually **run** on Paper 1.21 and failures carry the reason (`✗ failed: stip — unknown to the server …`). Confirm runs the command (no more CONF loop). Note: `/gh <botcommand>` dispatched through web `/cmd` executes + audits but its reply text races the HTTP response (async-by-design) — use chat or `/GH000 …` in-game for those |
 
 ## Pillar 4 — Interact

@@ -50,6 +50,8 @@ public final class ToolProtocol {
                                            lp group PRO parent add default; lp group PRO meta addprefix 1000 "…"⟧).
                                            Systemic commands (stop/reload/op/deop/ban/whitelist/rm -rf…) are
                                            BLOCKED and mint a CONF-… token — tell the user to confirm it.
+                - script [run|status|drop] — pending command-script from a 📎 .txt upload (preview first,
+                                           never auto-run). Do NOT re-emit the script lines via cmd.
                 - admin <op> <file> [args] — admin ops: read <file> | set <file> <key> <value> |
                                            backup <file> | restore <file> | rollback [token] | reload [plugin] |
                                            menu <name> [title]. Works on plugin YAML AND server .properties

@@ -1085,14 +1085,14 @@ public class SmokeTest {
             up.disconnect();
             check("upload json → staged summary", up.getResponseCode() == 200
                     && upBody.contains("Staged from upload") && upBody.contains("preview.png"));
-            // unsupported file type
+            // unsupported file type (v0.28.0 — .txt is now a command-script, so probe .exe)
             java.net.HttpURLConnection up2 = (java.net.HttpURLConnection) new java.net.URL(
-                    "http://127.0.0.1:" + upPort + "/upload?name=x.txt").openConnection();
+                    "http://127.0.0.1:" + upPort + "/upload?name=x.exe").openConnection();
             up2.setRequestMethod("POST"); up2.setDoOutput(true); up2.setConnectTimeout(3000); up2.setReadTimeout(3000);
             try (var os = up2.getOutputStream()) { os.write("hi".getBytes()); }
             int up2c = up2.getResponseCode();
             up2.disconnect();
-            check("upload rejects non-json/image", up2c == 415);
+            check("upload rejects unknown types", up2c == 415);
             // invalid json spec
             java.net.HttpURLConnection up3 = (java.net.HttpURLConnection) new java.net.URL(
                     "http://127.0.0.1:" + upPort + "/upload?name=bad.json").openConnection();
@@ -1100,13 +1100,35 @@ public class SmokeTest {
             try (var os = up3.getOutputStream()) { os.write("not json".getBytes()); }
             int up3c = up3.getResponseCode();
             up3.disconnect();
+            // v0.28.0 — .txt command-script is previewed, NEVER executed on upload
+            dev.ghbot.command.CommandScript.resetForTests();
+            String miniScript = "# boot setup\nop YOURNAME\nlp creategroup vip\n";
+            java.net.HttpURLConnection up4 = (java.net.HttpURLConnection) new java.net.URL(
+                    "http://127.0.0.1:" + upPort + "/upload?name=setup.txt&prompt="
+                            + java.net.URLEncoder.encode("skip step 9", "UTF-8")).openConnection();
+            up4.setRequestMethod("POST"); up4.setDoOutput(true); up4.setConnectTimeout(3000); up4.setReadTimeout(3000);
+            try (var os = up4.getOutputStream()) { os.write(miniScript.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+            int up4c = up4.getResponseCode();
+            String up4Body = "";
+            try { up4Body = new String(up4.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (Exception ignored) { try { up4Body = new String(up4.getErrorStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8); } catch (Exception ignored2) {} }
+            up4.disconnect();
             upSrv.stop();
             check("upload invalid json rejected", up3c == 400);
+            check("upload txt command-script → preview not run", up4c == 200
+                    && up4Body.contains("not run yet") && up4Body.contains("YOURNAME")
+                    && up4Body.toLowerCase().contains("run")
+                    && !up4Body.contains("ran script"));
+            check("upload txt stashes a pending script on the default bot",
+                    dev.ghbot.command.CommandScript.hasPending("GH000"));
+            dev.ghbot.command.CommandScript.resetForTests();
         } catch (Exception e) {
             System.out.println("  [FAIL-DBG] upload: " + e);
             check("upload json → staged summary", false);
-            check("upload rejects non-json/image", false);
+            check("upload rejects unknown types", false);
             check("upload invalid json rejected", false);
+            check("upload txt command-script → preview not run", false);
+            check("upload txt stashes a pending script on the default bot", false);
         }
         // v0.21.42 — review-activity feed: Approve/Deny/Export in the 3D viewer → /api/events
         try {
@@ -2787,6 +2809,127 @@ public class SmokeTest {
                     && bcSrc.contains("tell(sender, log")
                     && gpSrcV.contains("attachVision(chatService, cfg)")
                     && gpSrcV.contains("chatService, cfg"));
+        }
+
+        // ── v0.28.0 — command-script upload (preview first, then run) ──
+        {
+            dev.ghbot.command.CommandScript.resetForTests();
+            Path fx = Path.of("tools/fixtures/setup_commands.txt");
+            if (!Files.exists(fx)) fx = Path.of("gh-bot/tools/fixtures/setup_commands.txt");
+            if (!Files.exists(fx)) fx = Path.of("/home/user/uploads/setup_commands.txt");
+            String setupTxt = Files.exists(fx) ? Files.readString(fx) : "";
+            var parsed = dev.ghbot.command.CommandScript.parse("setup_commands.txt", setupTxt);
+            check("script parse: setup_commands.txt is ok with GHLMC purpose",
+                    parsed.ok() && parsed.purpose().toLowerCase().contains("ghlmc")
+                    && parsed.purpose().toLowerCase().contains("first-boot"));
+            check("script parse: 27 executable commands, comments are not commands",
+                    parsed.commands().size() == 27 && parsed.commentLines() > 10
+                    && parsed.commands().stream().noneMatch(L -> L.command().startsWith("worldborder"))
+                    && parsed.commands().stream().noneMatch(L -> L.command().startsWith("iaget")));
+            check("script parse: YOURNAME flagged on op + two lp user lines",
+                    parsed.commands().stream().filter(L -> L.placeholders().contains("YOURNAME")).count() == 3
+                    && parsed.commands().stream().anyMatch(L -> L.command().equals("op YOURNAME") && L.sensitive()));
+            check("script parse: step 6 holds the boss spawn",
+                    parsed.commands().stream().anyMatch(L -> L.step() == 6
+                            && L.command().startsWith("mm mobs spawn")));
+            check("script parse: leading slash stripped + trailing # comment dropped",
+                    "op Steve".equals(dev.ghbot.command.CommandScript.parse("t.txt", "/op Steve # note").commands().get(0).command()));
+            check("script parse: empty / comments-only / json-as-txt are errors",
+                    !dev.ghbot.command.CommandScript.parse("e.txt", "").ok()
+                    && !dev.ghbot.command.CommandScript.parse("c.txt", "# just a note\n").ok()
+                    && !dev.ghbot.command.CommandScript.parse("j.txt",
+                            "{\"name\":\"T\",\"palette\":{\"0\":\"minecraft:stone\"},\"blocks\":[{\"x\":0,\"y\":0,\"z\":0,\"block\":\"0\"}]}").ok());
+            StringBuilder many = new StringBuilder();
+            for (int i = 0; i < 90; i++) many.append("say ").append(i).append('\n');
+            var capScript = dev.ghbot.command.CommandScript.parse("cap.txt", many.toString());
+            check("script parse: command cap 80 with truthful truncated count",
+                    capScript.ok() && capScript.commands().size() == 80 && capScript.truncated() == 10);
+
+            var planOpen = dev.ghbot.command.CommandScript.plan(parsed, "");
+            check("script plan: unfilled YOURNAME is NOT in toRun (3 holes)",
+                    planOpen.needFill().size() == 3
+                    && planOpen.toRun().stream().noneMatch(L -> L.command().contains("YOURNAME"))
+                    && planOpen.toRun().size() == 24);
+            var planFill = dev.ghbot.command.CommandScript.plan(parsed, "my name is .SerthGembel009");
+            check("script plan: fill YOURNAME + op still CONF",
+                    planFill.needFill().isEmpty()
+                    && planFill.toRun().stream().anyMatch(L -> L.command().equals("op .SerthGembel009") && L.sensitive())
+                    && planFill.willConfirm().size() == 1
+                    && ".SerthGembel009".equals(dev.ghbot.command.CommandScript.parsePlayerName("my name is .SerthGembel009")));
+            var planSkip = dev.ghbot.command.CommandScript.plan(parsed, "skip step 6");
+            check("script plan: skip step 6 drops boss + spark",
+                    planSkip.skipped().size() == 4
+                    && planSkip.toRun().stream().noneMatch(L -> L.command().contains("AstralWarden"))
+                    && planSkip.toRun().stream().noneMatch(L -> L.command().startsWith("spark")));
+            var planBoss = dev.ghbot.command.CommandScript.plan(parsed, "skip the boss");
+            check("script plan: skip the boss matches section title",
+                    planBoss.skipped().stream().anyMatch(L -> L.command().contains("AstralWarden")));
+            String card = dev.ghbot.command.CommandScript.preview(planOpen);
+            check("script preview: purpose + holes + say run + not run yet",
+                    card.contains("setup_commands.txt") && card.contains("not run yet")
+                    && card.contains("YOURNAME") && card.contains("Say **run**")
+                    && card.contains("Fill:") && !card.contains("ran script"));
+
+            String refuse = dev.ghbot.command.CommandScript.handle(def, null, new String[]{"run"});
+            check("script handle: run with nothing pending is honest",
+                    refuse.contains("no pending"));
+            dev.ghbot.command.CommandScript.stash("GH000", parsed, "");
+            String blocked = dev.ghbot.command.CommandScript.handle(def, null, new String[]{"run"});
+            check("script handle: run with YOURNAME holes refuses (does not dispatch)",
+                    blocked.contains("not running") && blocked.contains("YOURNAME")
+                    && dev.ghbot.command.CommandScript.hasPending("GH000"));
+            dev.ghbot.command.CommandScript.amend("GH000", "my name is Steve");
+            var afterAmend = dev.ghbot.command.CommandScript.peek("GH000");
+            var planAmend = dev.ghbot.command.CommandScript.plan(afterAmend.parsed(), afterAmend.prompt());
+            check("script amend: merged prompt fills YOURNAME",
+                    planAmend.needFill().isEmpty()
+                    && planAmend.toRun().stream().anyMatch(L -> L.command().equals("op Steve")));
+            check("script drop clears pending",
+                    dev.ghbot.command.CommandScript.drop("GH000") != null
+                    && !dev.ghbot.command.CommandScript.hasPending("GH000"));
+
+            var atRun = dev.ghbot.agent.AutoTools.detectScript("run", true);
+            var atSkip = dev.ghbot.agent.AutoTools.detectScript("skip step 6", true);
+            var atName = dev.ghbot.agent.AutoTools.detectScript("my name is .SerthGembel009", true);
+            var atScanScript = dev.ghbot.agent.AutoTools.detectScript("scan 20", true);
+            var atBare = dev.ghbot.agent.AutoTools.detectScript("run", false);
+            var atLit = dev.ghbot.agent.AutoTools.detectScript("run the script", false);
+            check("auto-tool script: run/skip/name when pending; scan never stolen; bare run needs pending",
+                    atRun != null && "script".equals(atRun.name()) && "run".equals(atRun.args()[0])
+                    && atSkip != null && "amend".equals(atSkip.args()[0])
+                    && atName != null && "amend".equals(atName.args()[0])
+                    && atScanScript == null
+                    && atBare == null
+                    && atLit != null && "run".equals(atLit.args()[0]));
+
+            check("catalog + tool sheet advertise script (not shelved)",
+                    dev.ghbot.command.BotCommands.CATALOG.containsKey("script")
+                    && dev.ghbot.command.BotCommands.toolSheet().contains("script [run|status|drop]")
+                    && !dev.ghbot.command.BotCommands.SHELVED.contains("script"));
+            check("capability guide + tool help tell the AI not to cmd the file",
+                    dev.ghbot.ai.CapabilityGuide.text().contains("script run")
+                    && dev.ghbot.ai.CapabilityGuide.text().contains("Do NOT dump")
+                    && dev.ghbot.agent.ToolProtocol.helpText().contains("script [run|status|drop]")
+                    && dev.ghbot.ai.ChatService.systemPrompt().contains("PREVIEWED first"));
+
+            Path cons = Path.of("src/main/resources/web/console.html");
+            if (!Files.exists(cons)) cons = Path.of("gh-bot/src/main/resources/web/console.html");
+            String consSrc = Files.exists(cons) ? Files.readString(cons) : "";
+            Path upPath = Path.of("src/main/java/dev/ghbot/web/WebStatusServer.java");
+            if (!Files.exists(upPath)) upPath = Path.of("gh-bot/src/main/java/dev/ghbot/web/WebStatusServer.java");
+            String upSrc = Files.exists(upPath) ? Files.readString(upPath) : "";
+            Path gpPathS = Path.of("src/main/java/dev/ghbot/GHBotPlugin.java");
+            if (!Files.exists(gpPathS)) gpPathS = Path.of("gh-bot/src/main/java/dev/ghbot/GHBotPlugin.java");
+            String gpSrcS = Files.exists(gpPathS) ? Files.readString(gpPathS) : "";
+            Path csPath = Path.of("src/main/java/dev/ghbot/ai/ChatService.java");
+            if (!Files.exists(csPath)) csPath = Path.of("gh-bot/src/main/java/dev/ghbot/ai/ChatService.java");
+            String csSrc = Files.exists(csPath) ? Files.readString(csPath) : "";
+            check("script upload is wired (console accept + handleScriptUpload + tool + detectScript)",
+                    consSrc.contains(".txt,.cmd,.mcfunction") && consSrc.contains("isScript")
+                    && upSrc.contains("handleScriptUpload") && upSrc.contains("never auto-run")
+                    && gpSrcS.contains("CommandScript.handle")
+                    && csSrc.contains("detectScript") && csSrc.contains("injectNote"));
+            dev.ghbot.command.CommandScript.resetForTests();
         }
 
         System.out.println("\n[SMOKE] RESULT: " + (fail == 0 ? "PASS ✓" : "FAIL ✗")

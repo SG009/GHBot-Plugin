@@ -307,6 +307,10 @@ public class GHBotPlugin extends JavaPlugin {
                     });
                 } catch (NumberFormatException e) { return "bad coords"; }
             }
+            case "script" -> {
+                // v0.28.0 — pending 📎 command-script (preview / run / drop / amend)
+                return dev.ghbot.command.CommandScript.handle(bot, commandLearning, args);
+            }
             case "cmd" -> {
                 if (arg.isBlank()) return "usage: cmd <command...> (separate multiple with ';')";
                 // v0.21.26 — return the command's ACTUAL output (e.g. the schematic list) so the

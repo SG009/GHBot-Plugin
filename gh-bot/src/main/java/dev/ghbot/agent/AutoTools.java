@@ -18,6 +18,48 @@ public final class AutoTools {
 
     private AutoTools() {}
 
+    /**
+     * v0.28.0 — follow-ups for a pending 📎 command-script. Call this BEFORE
+     * {@link #detect} so "run" / "skip step 6" / "my name is X" don't fall through
+     * to the Technician as chat. Returns null when the text is some other command
+     * (scan/build/…) even if a script is pending.
+     */
+    public static Call detectScript(String text, boolean hasPending) {
+        if (text == null) return null;
+        String t = text.trim();
+        if (t.isEmpty()) return null;
+        String low = t.toLowerCase();
+
+        java.util.regex.Matcher mSub = java.util.regex.Pattern
+                .compile("^script\\s+(run|status|drop|preview|execute)\\s*$").matcher(low);
+        if (mSub.find()) {
+            String sub = mSub.group(1);
+            if (sub.equals("execute")) sub = "run";
+            if (sub.equals("preview")) sub = "status";
+            return new Call("script", new String[]{sub}, "script " + sub);
+        }
+
+        if (low.matches("^(run the script|execute the script|script run)$")) {
+            return new Call("script", new String[]{"run"}, "script run");
+        }
+        if (low.matches("^(drop the script|cancel the script|forget the script|script drop)$")) {
+            return new Call("script", new String[]{"drop"}, "script drop");
+        }
+
+        if (!hasPending) return null;
+
+        if (low.matches("^(run|run it|run this|run the script|execute( it)?|execute the script|do it)$")) {
+            return new Call("script", new String[]{"run"}, "script run");
+        }
+        if (low.matches("^(drop|drop it|drop the script|cancel the script|forget the script|forget it)$")) {
+            return new Call("script", new String[]{"drop"}, "script drop");
+        }
+        if (dev.ghbot.command.CommandScript.isAmendPrompt(t)) {
+            return new Call("script", new String[]{"amend", t}, "script amend");
+        }
+        return null;
+    }
+
     /** Detect an imperative tool request in a chat message, or null. */
     public static Call detect(String text) {
         if (text == null) return null;

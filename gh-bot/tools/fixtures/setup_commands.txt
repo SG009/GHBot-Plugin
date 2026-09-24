@@ -1,0 +1,76 @@
+# =============================================================================
+# GHLMC — First-boot setup commands
+# Paste these into the SERVER CONSOLE after the server is fully started
+# (you see "Done! For help, type help"). Do it ONCE. Order matters.
+# Lines starting with # are notes — don't paste those.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# 1) MAKE YOURSELF ADMIN  (replace YOURNAME with your Minecraft username)
+# ---------------------------------------------------------------------------
+op YOURNAME
+lp creategroup vip
+lp creategroup admin
+lp group admin permission set * true
+lp user YOURNAME parent add admin
+
+# ---------------------------------------------------------------------------
+# 2) DEFAULT PLAYER PERMISSIONS
+# ---------------------------------------------------------------------------
+lp group default permission set deluxemenus.open true
+lp group default permission set multiverse.teleport.self.* true
+lp group default permission set auctionhouse.use true
+lp group default permission set playervaults.amount.1 true
+# Personal-stat gate DENIED by default; granted at Lv.40 (see step 5)
+lp group default permission set ghl.personalstat.unlocked false
+
+# ---------------------------------------------------------------------------
+# 3) CREATE WORLDS  (Multiverse-Core 5.x)
+# ---------------------------------------------------------------------------
+mv create survival normal
+mv create resource normal
+mv create event normal
+mv create minigames normal
+
+# ---------------------------------------------------------------------------
+# 4) WORLD TUNING  (RAM + let MythicMobs own spawns)
+#    NOTE: Multiverse 5 property names can vary slightly by build. If a line
+#    errors, run  mv modify  with no args to see valid properties.
+# ---------------------------------------------------------------------------
+mv modify survival set spawning.monsters false
+mv modify survival set keepspawninmemory false
+mv modify resource set keepspawninmemory false
+mv modify event set keepspawninmemory false
+mv modify event set autoload false
+mv modify minigames set keepspawninmemory false
+mv modify minigames set autoload false
+
+# Make MythicMobs the ONLY monster spawner in survival:
+execute in survival run gamerule doMobSpawning false
+
+# Tight regenerating border on the resource world (stand in it or set via console):
+# (run these while the resource world is loaded)
+# worldborder center 0 0
+# worldborder set 500
+
+# ---------------------------------------------------------------------------
+# 5) THE Lv.40 PERSONAL-STAT UNLOCK  (prototype approach)
+#    AuraSkills has no MMOCore-style "character level", so grant the unlock
+#    perm as a reward. For TESTING, grant yourself now:
+# ---------------------------------------------------------------------------
+lp user YOURNAME permission set ghl.personalstat.unlocked true
+# Then in game:  /dm open personalstat   -> pick ONE branch (locks crt/mtl/luk/tech)
+
+# ---------------------------------------------------------------------------
+# 6) TEST THE BOSS  (after ItemsAdder + /iazip if you added it)
+# ---------------------------------------------------------------------------
+mv tp survival
+mm mobs spawn AstralWarden
+# Watch for the red telegraph ring -> slam. Then check performance:
+spark tps
+spark healthreport
+
+# ---------------------------------------------------------------------------
+# 7) GIVE YOURSELF A STARTER WEAPON (needs ItemsAdder installed + /iazip run)
+# ---------------------------------------------------------------------------
+# iaget ghlmc:blade_starter

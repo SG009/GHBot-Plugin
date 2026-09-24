@@ -294,7 +294,7 @@ public class WebStatusServer {
         server.createContext("/api/status", guard(this::handleApiStatus));
         server.createContext("/api/tools", guard(this::handleApiTools));
         server.createContext("/cmd", guard(this::handleCmd));
-        server.createContext("/upload", guard(this::handleUpload));   // v0.21.40 — upload JSON build spec or image
+        server.createContext("/upload", guard(this::handleUpload));   // v0.21.40 JSON/image · v0.28.0 .txt command-script
         server.createContext("/api/events", guard(this::handleApiEvents));   // v0.21.42 — review-activity feed
         server.createContext("/api/cancel", guard(this::handleApiCancel));   // v0.21.44 — Stop button
         server.createContext("/api/scan/last", guard(this::handleApiScanLast)); // v0.25.0 — Phase C viewer scan layer
@@ -355,22 +355,14 @@ public class WebStatusServer {
 
     /* ── /upload — v0.21.40: upload a .json build spec (stages it directly, no paste into
      *  the bubble — solves 140KB+ specs) OR an image (vision → build spec → stage).
-     *  Request: POST /upload?name=file.json  with raw body = file bytes. ── */
+     *  v0.28.0: .txt / .cmd / .mcfunction = command-script PREVIEW (never auto-run).
+     *  Request: POST /upload?name=file.json[&prompt=…][&session=…]  raw body = file bytes. ── */
     private void handleUpload(HttpExchange ex) throws IOException {
         if (!ex.getRequestMethod().equalsIgnoreCase("POST")) { respond(ex, 405, "POST only"); return; }
         if (toolProvider == null || chatService == null || registry == null) {
             respond(ex, 503, "Upload not available (chat/tools not attached)"); return;
         }
-        String query = ex.getRequestURI().getQuery();
-        String name = "";
-        if (query != null) {
-            for (String kv : query.split("&")) {
-                String[] p = kv.split("=", 2);
-                if (p.length == 2 && p[0].equals("name")) {
-                    name = java.net.URLDecoder.decode(p[1], java.nio.charset.StandardCharsets.UTF_8);
-                }
-            }
-        }
+        String name = queryParam(ex, "name");
         if (name.isBlank()) { respond(ex, 400, "missing ?name=<file>"); return; }
         // v0.22.2 — bounded read (AUDIT P1-4): reject DURING the read at 25 MB + 1 byte
         // instead of buffering an unbounded body into the heap first (phone, 0.0.0.0 bind).
@@ -378,6 +370,10 @@ public class WebStatusServer {
         if (body == null) { respond(ex, 413, "file too large (max 25 MB)"); return; }
 
         String lower = name.toLowerCase();
+        if (dev.ghbot.command.CommandScript.isScriptFilename(name)) {
+            handleScriptUpload(ex, name, body);
+            return;
+        }
         String specText = null;
         if (lower.endsWith(".json")) {
             specText = new String(body, java.nio.charset.StandardCharsets.UTF_8);
@@ -399,7 +395,7 @@ public class WebStatusServer {
                 return;
             }
         } else {
-            respond(ex, 415, "unsupported file type (use .json, .png, .jpg, .jpeg, .webp)");
+            respond(ex, 415, "unsupported file type (use .json, .png, .jpg, .jpeg, .webp, .gif, .txt, .cmd, .mcfunction)");
             return;
         }
 
@@ -407,6 +403,35 @@ public class WebStatusServer {
         // run through the SAME build tool as chat → stages + registers a preview job
         String result = toolProvider.get().run(new dev.ghbot.agent.ToolProtocol.ToolCall("build", new String[]{specText}));
         respond(ex, 200, summarizeBuild(result, name));
+    }
+
+    /** v0.28.0 — parse + preview a command script. NEVER executes on upload. */
+    private void handleScriptUpload(HttpExchange ex, String name, byte[] body) throws IOException {
+        if (body.length > dev.ghbot.command.CommandScript.MAX_BYTES) {
+            respond(ex, 413, "command script too large (max 64 KB)"); return;
+        }
+        var parsed = dev.ghbot.command.CommandScript.parse(name, body);
+        if (!parsed.ok()) {
+            respond(ex, 400, "not a command script: " + parsed.error()); return;
+        }
+        String prompt = queryParam(ex, "prompt");
+        String session = queryParam(ex, "session");
+        GHBot bot = registry.defaultBot();
+        if (bot != null) {
+            dev.ghbot.command.CommandScript.stash(bot.id(), parsed, prompt);
+            try {
+                chatService.injectNote(bot, session,
+                        "[The admin uploaded command script \"" + name + "\" ("
+                                + parsed.commands().size() + " commands). GHBot parsed it and is waiting. "
+                                + "Do NOT emit cmd tools for these lines — the script runner owns execution. "
+                                + "When they say run / fill YOURNAME / skip a step, the server will execute.]");
+            } catch (Throwable ignored) {}
+        }
+        var plan = dev.ghbot.command.CommandScript.plan(parsed, prompt);
+        String card = dev.ghbot.command.CommandScript.preview(plan);
+        log.consoleLog("WEB /upload script name=" + name + " cmds=" + parsed.commands().size()
+                + " promptChars=" + (prompt == null ? 0 : prompt.length()) + " — preview, not run");
+        respond(ex, 200, card);
     }
 
     /** v0.21.40 — the build tool echoes the whole spec back; for uploads we keep only the

@@ -48,6 +48,7 @@ public final class CapabilityGuide {
             ── SERVER COMMAND CATALOG ──
             • catalog [keyword]                 — browse ALL server commands (from /help + plugins)
             • cmd <command> [; cmd2]            — run any SERVER command as console; MULTI via ';'
+            • script run|status|drop            — pending 📎 .txt command-script (preview first, never auto-run)
             IMPORTANT: GH-bot's OWN tools (library, scan, find, build, view, admin,
             approve/deny/redo, etc.) are called DIRECTLY as their own tool (e.g. ⟦tool:library⟧),
             NOT via cmd. Use `cmd` only for real server/plugin commands (e.g. `cmd lp listgroups`,
@@ -56,6 +57,10 @@ public final class CapabilityGuide {
               mint a CONF-… token. NEVER run them. You cannot bypass it.
             • When the USER provides a CONF-… token (e.g. types "CONF-1234-567"), call
               ⟦tool:confirm CONF-1234-567⟧ to actually execute the confirmed command.
+            • 📎 .txt / .cmd / .mcfunction command scripts: the server PREVIEWED the file
+              (comments stripped, YOURNAME flagged, systemic lines still CONF). Do NOT dump
+              the file through cmd yourself — wait for the admin to say run / fill the name
+              / skip a step, then ⟦tool:script run⟧. Never invent extra commands not in the file.
 
             ── REVIEW FLOW ──
             After you build, the user reviews in the 3D viewer (the /view URL in your reply) or in-game.

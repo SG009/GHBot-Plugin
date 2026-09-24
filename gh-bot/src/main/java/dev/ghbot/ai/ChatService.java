@@ -166,6 +166,9 @@ public class ChatService {
             - Run multi-step commands in ONE cmd call separated by ';' (e.g. setting up
               LuckPerms ranks: lp creategroup PRO; lp group PRO parent add default;
               lp group PRO meta addprefix 1000 "&#ffaa00[PRO]"). Each line is audited.
+            - 📎 .txt command scripts are PREVIEWED first (never auto-run). When the admin
+              says run / fills YOURNAME / skip step N, the server executes via script run.
+              Do not dump the file through cmd yourself.
             - Dangerous commands (stop/reload/op/deop/ban/whitelist/rm -rf…) are blocked
               and mint a CONF-… token the user must confirm — never run them yourself.
             - You have a BROAD toolset — the ADMIN-ONLY 4-pillar surface: status, players,
@@ -237,7 +240,11 @@ public class ChatService {
         // ON THE SERVER and feed the REAL result to the model. Never rely on the model to emit
         // ⟦tool:…⟧ — smaller/cloud models just talk (that was the "chatbot only" bug).
         if (tools != null) {
-            dev.ghbot.agent.AutoTools.Call auto = dev.ghbot.agent.AutoTools.detect(text);
+            // v0.28.0 — pending 📎 command-script follow-ups (run / skip / fill YOURNAME)
+            // take priority over generic chat, but never steal scan/build/cmd.
+            dev.ghbot.agent.AutoTools.Call auto = dev.ghbot.agent.AutoTools.detectScript(
+                    text, dev.ghbot.command.CommandScript.hasPending(bot.id()));
+            if (auto == null) auto = dev.ghbot.agent.AutoTools.detect(text);
             if (auto != null) {
                 try {
                     if (onChunk != null) onChunk.accept("⟦tool:" + auto.display() + "⟧\n");
@@ -382,6 +389,19 @@ public class ChatService {
         hist.add(new AIClient.ChatMessage("assistant", reply));
         trim(hist);
         return reply;
+    }
+
+    /**
+     * v0.28.0 — inject a note into session history WITHOUT calling the model
+     * (used when a command-script is uploaded so the Technician sees it later).
+     */
+    public void injectNote(GHBot bot, String sessionKey, String text) {
+        if (bot == null || text == null || text.isBlank()) return;
+        String sess = (sessionKey == null || sessionKey.isBlank()) ? "web" : sessionKey;
+        String key = bot.id() + "|" + sess;
+        List<AIClient.ChatMessage> hist = getOrCreateSession(key);
+        hist.add(new AIClient.ChatMessage("user", text));
+        trim(hist);
     }
 
     public String chatSync(GHBot bot, String text) {

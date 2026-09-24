@@ -103,8 +103,8 @@
   <div id="chat">
     <div id="log"></div>
     <div id="row">
-      <button id="upBtn" onclick="document.getElementById('upFile').click()" title="Upload a .json build spec or an image (GH-bot reads it)">📎</button>
-      <input type="file" id="upFile" accept=".json,.png,.jpg,.jpeg,.webp,.gif" style="display:none">
+      <button id="upBtn" onclick="document.getElementById('upFile').click()" title="Upload a .json build spec, an image, or a .txt command list">📎</button>
+      <input type="file" id="upFile" accept=".json,.png,.jpg,.jpeg,.webp,.gif,.txt,.cmd,.mcfunction,text/plain" style="display:none">
       <input id="in" placeholder="Ask or command GH-bot…" autofocus><button id="sendBtn" onclick="send()">Send</button>
     </div>
   </div>
@@ -276,11 +276,16 @@ async function sendToTechnician(t){
 async function uploadFile(f){
   if(!f || busy) return;
   const isImg=f.type.startsWith('image/');
+  const isScript=/\.(txt|cmd|mcfunction)$/i.test(f.name) || f.type==='text/plain';
+  const prompt=isScript ? (inp.value||'').trim() : '';
+  if(isScript && prompt) inp.value='';
   busy=true; setSendStop();
-  add('u', (isImg?'🖼️ ':'📄 ')+'**'+escHtml(f.name)+'** ('+fmtSize(f.size)+')');
-  const think=add('thinking', isImg?'Reading image…':'Parsing build spec…');
+  add('u', (isImg?'🖼️ ':'📄 ')+'**'+escHtml(f.name)+'** ('+fmtSize(f.size)+')'+(prompt?('\n_'+escHtml(prompt)+'_'):''));
+  const think=add('thinking', isImg?'Reading image…': isScript?'Reading command script…':'Parsing build spec…');
   try{
-    const r=await fetch('/upload?name='+encodeURIComponent(f.name), {method:'POST', body:f});
+    let url='/upload?name='+encodeURIComponent(f.name)+'&session='+encodeURIComponent(sessionId);
+    if(prompt) url+='&prompt='+encodeURIComponent(prompt);
+    const r=await fetch(url, {method:'POST', body:f});
     const t=await r.text();
     think.remove();
     if(!r.ok){ add('bot','⚠️ **Upload failed ('+r.status+')**\n'+t); return; }
@@ -304,7 +309,7 @@ document.getElementById('upFile').addEventListener('change', ev=>{
 });
 
 // welcome message
-addBubble('bot','👋 **GH-bot console** — I am the **Technician** (server AI).\nJust say things like: "scan 100 at 86 86 262", "build a house", "status", "change the motd to Welcome!" — I run them for real and show the tool chip.\nClick **Load secretary** for the on-device assistant (it drafts requests for me to execute).');
+addBubble('bot','👋 **GH-bot console** — I am the **Technician** (server AI).\nJust say things like: "scan 100 at 86 86 262", "build a house", "status", "change the motd to Welcome!" — I run them for real and show the tool chip.\n📎 also accepts a **.txt command list** (preview first, then say **run**).\nClick **Load secretary** for the on-device assistant (it drafts requests for me to execute).');
 
 // status sidebar
 async function status(){
