@@ -1,650 +1,173 @@
-# GH-Bot — AI Builder & Admin Agent for PaperMC
+# GHBot Plugin — Developer Handoff Brief
 
-**Status: ALL PHASES COMPLETE (0–16) + 9b v2 Web Console + v0.21 Hardening + v0.21.39 pasted-spec direct-execute + v0.21.40 📎 upload & vision + v0.21.41 session eviction & thread safety + v0.21.42 mega builds (100k cap) & viewer action feed + v0.21.43 reload-reset & vision retry + v0.22.0 JARVIS-FOR-ADMIN (4 pillars only, rest shelved, admin-only) + v0.22.1 Eyes-as-Data (scan/find/look → jsonspec) + v0.22.2 Pillar-3 cmd output capture (all-surfaces sender + JUL session) & Pillar-1/2 audit fixes + v0.22.3 live-batch regression sweep (cmd dispatch via Paper FeedbackForwardingSender, CONF loop, admin read, scan y<0) + v0.22.4 jar version-stamp fix (`version GHBot` reports the true build) + v0.23.0 web-console login token (Q3 — CONF-style WEB token, session gate) + v0.23.1 login return-to-destination (`/console` default) + v0.24.0 console-log auditor (Phase B — WARN/ERROR ring + per-plugin digest + suggestion rules + installed-only update radar; reflection-only log4j attach validated against DiscordSRV/JDAAppender) + v0.25.0 eyes lattice & Good-Result build pack (Phase C — scan hands the AI a real `x,z: y material` grid + viewer scan layer + look-then-set precision loop + gold few-shot exemplars/hand-editable style sheets/two-pass plan→parts generation; teach/dataset revived) + v0.26.0 audit fix-advisor (Phase E2, owner-proposed — digest groups numbered, `audit show <n>` browses full lines+stacks, `audit fix <n>` answers from hand-editable audit-fixes.yml (19 built-in rules, owner rules win) with a clearly-labeled AI-guess fallback, plus instant update tables with pre-release risk notes) + v0.27.0 Phase E start — Phase D dropped by owner (undo drift-guard: exact per-position check, non-destructive refusal, `undo confirm` forces · web loopback login bypass (opt-in) · paste-ambiguity asks instead of guessing · catalog auto-refresh on empty) + v0.27.1 Bedrock `.mcstructure` export (little-endian NBT codec + FAWE research, no FAWE dependency) + v0.27.2 vision auto-verify (opt-in `build.verify-vision`, 1 repair pass, pasted JSON is the contract) + v0.28.0 command-script upload (📎 .txt/.cmd/.mcfunction PREVIEW first — parser is the contract for the lines, admin fills YOURNAME / skips steps / says run, never auto-runs; script tool + auto-tool + CATALOG/tool-sheet wiring so the AI can't cmd the file itself) · smoke **642/642 PASS** · jar `GHBot-0.28.0.jar`**
+**Current version**: v0.28.0 · **Smoke suite**: 642/642 PASS · **Status**: Production-ready
 
-> **Goal:** a hands-off AI-bot that replaces you (the admin) for managing anything related to the
-> Minecraft server and/or in-game designs — while you can't play the game or handle the server.
+This document is for AI agents and developers taking over this project. It describes the current state, architecture, and workflow.
 
----
+## What GHBot Is
 
-## GHBot v0.27.2 — current state & agent handoff brief (READ THIS FIRST)
+GHBot is a PaperMC plugin that turns a Minecraft server into a hands-off AI builder and admin agent. It runs on a **6 GB phone** (Termux/proot, aarch64) with Paper 1.21.11, Geyser/Floodgate, DiscordSRV, Essentials, ViaVersion, and Vault.
 
-> If you're a **NEW agent (Claude / OpenClaw / any other model)** taking over this project:
-> read this section first. It is the verified truth as of **2026-09-24** (v0.28.0). The rest of the
-> README is the full feature catalogue; `ai-builder-bot-plan.md` §17 is the complete
-> per-version changelog. The next-batch plan (v0.23→v0.27) lives in
-> `gh-bot/docs/PLAN-next-batch-v0.23-v0.27.md`. Deep-research docs live in `gh-bot/docs/`:
-> `FIX-0.22.3-cmd-dispatch.md` / `FIX-0.22.4-version-stamp.md` (root-cause write-ups),
-> `PLAN-pillar3-cmd-output-capture.md` (Pillar-3 design + dependency evidence) and
-> `AUDIT-pillar1-2-go-no-go.md` (the Pillar-1/2 code audit).
+**Default bot**: `GH000` · **Web console**: `:8580/console` · **Admin-only**: console + OP players
 
-### What's new in v0.28.0 (command-script upload — 📎 .txt / .cmd / .mcfunction)
+## The Core Mechanic
 
-- **Upload a command list → PREVIEW first, never auto-run.** The 📎 button now accepts
-  `.txt` / `.cmd` / `.mcfunction` alongside `.json` and images. GHBot parses the file
-  (comments stripped, order kept, leading `/` stripped, trailing `# comment` dropped),
-  shows purpose / command count / which lines still need filling, and waits for you.
-  Parser is the CONTRACT — the Technician never invents extra server commands.
-- **Fill / skip / drop via chat:** `my name is .SerthGembel009` fills YOURNAME on every
-  line · `skip step 6` drops an entire `# 6) …` section · `skip the boss` matches section
-  titles · `drop the script` forgets the pending file. All three are AUTO-TOOL detected —
-  plain "run" works while a script is pending.
-- **CONF guards still apply** — `op`, `stop`, `reload`, `whitelist`, etc. mint a CONF
-  token at run-time, same as typing `cmd op Steve` by hand. Nothing is bypassed.
-- **The AI is told not to cmd the file itself** — CapabilityGuide + ToolProtocol both say
-  "📎 .txt command scripts are PREVIEWED first (never auto-run)… Do NOT dump the file
-  through cmd yourself". Pinned in smoke.
-- **Smoke 642/642** (+22 over v0.27.2). Mutations G/H/I each kill exactly their pins.
-- **Live check planned:** owner uploads `setup_commands.txt` → sees purpose + 27 commands
-  + YOURNAME holes → says "my name is .SerthGembel009" → "skip step 6" → "run".
+**The JSON build spec is the CONTRACT.** Since v0.21.39, pasted JSON specs are parsed and staged directly — the AI never re-interprets them. "100% faithful" means `staged build == spec`.
 
-### What's new in v0.27.2 (Phase E item 2 — vision auto-verify loop)
+**Upload button** (v0.21.40+):
+- `.json` → staged directly (no pasting 140 KB specs)
+- Images → vision provider → JSON spec → staged
+- `.txt`/`.cmd`/`.mcfunction` → command script preview (never auto-runs)
 
-- **Opt-in post-stage vision checklist** (`build.verify-vision: true`, **default OFF** so we never
-  surprise-spend tokens). After a ghost is staged, GHBot renders the existing isometric PNG
-  (`BuildPreviewImage`) and asks a vision provider "does this match the intended spec?" —
-  JSON `{ok, reason, notes[]}`, **not** a redesign.
-- **1 repair pass** for AI-generated builds when `ok=false`. Pasted JSON specs are the
-  **contract** — vision may note mismatches, never rewrite them. `--direct` skips.
-  Garbage / empty vision replies never repair (keep the staged build).
-- **Honest provider gate:** Gemini 2.5-flash counts; Ollama only if the model name looks
-  multimodal (`llava`, `qwen2-vl`, `minimax`, …). `qwen2.5:0.5b` is text-only and is skipped
-  even though the HTTP transport accepts `images:[]`. No vision provider → skip message, not a fake PASS.
-- **Live-caught:** `build.verify-vision` must be read from the `build` YAML *section* (not the
-  dotted path); console `sendMessage` from the HTTP thread is silent → always WIB-log; wire
-  `attachVision` at **enable** not only `/gh reload`.
-### What's new in v0.28.0 (command-script upload — 📎 .txt / .cmd / .mcfunction)
-
-- **Upload a command list → PREVIEW first, never auto-run.** The 📎 button now accepts
-  `.txt` / `.cmd` / `.mcfunction` alongside `.json` and images. GHBot parses the file
-  (comments stripped, order kept, leading `/` stripped, trailing `# comment` dropped),
-  shows purpose / command count / which lines still need filling, and waits for you.
-- **Parser is the contract** — same idea as a pasted JSON build spec. The Technician and
-  admin prompt only FILLS placeholders and SKIPS steps — they never invent extra server
-  commands. YOURNAME / `<player>` / `{name}` / `TODO` / `CHANGEME` are flagged; `run`
-  **refuses** while any remain.
-- **Fill / skip / drop via chat:** "my name is .SerthGembel009" fills YOURNAME on every
-  line · `skip step 6` drops an entire `# 6) …` section · `skip the boss` matches section
-  titles · `drop the script` forgets the pending file. All three are AUTO-TOOL detected —
-  plain "run" works while a script is pending.
-- **CONF guards still apply** — `op`, `stop`, `reload`, `whitelist`, etc. mint a CONF
-  token at run-time, same as typing `cmd op Steve` by hand. Nothing is bypassed.
-- **Dispatches through `cmd`'s per-line capture** — you get real command output + full
-  text in `logs/cmd/<file>.log` for long replies. No separate code path that could drift.
-- **The AI is told not to cmd the file itself** — CapabilityGuide + ToolProtocol both
-  say "📎 .txt command scripts are PREVIEWED first (never auto-run)… Do NOT dump the file
-  through cmd yourself — wait for the admin to say run". Pinned in smoke.
-- **Smoke 642/642** (+22 over v0.27.2). Mutations coming up: G / H / I each kill exactly
-  their pins.
-- **Live check planned:** owner uploads `setup_commands.txt` → sees purpose + 27 commands
-  + YOURNAME holes → says "my name is .SerthGembel009" → "skip step 6" → "run".
-
-### What's new in v0.27.2 (Phase E item 2 — vision auto-verify loop)
-
-- **Opt-in post-stage vision checklist** (`build.verify-vision: true`, **default OFF** so we never
-  drops original) killed their pins. Live: `flag=true hasVision=false skip=no-provider` + honest skip line.
-- Write-up: `docs/RESEARCH-vision-verify.md`.
-
-### What's new in v0.27.1 (Phase E item 3 — Bedrock `.mcstructure` export + FAWE research)
-
-- **Bedrock `.mcstructure` export:** `export <name> mcstructure` (alias `bedrock`) and `export <name> all`
-  now write an uncompressed little-endian NBT `.mcstructure` next to the five Java formats. Spec-accurate:
-  `format_version=1`, `size`/`structure_world_origin` as TAG_List of 3 ints (NOT Int_Array — Bedrock
-  refuses those), two `block_indices` layers in ZYX order, empty cells `-1` (structure void), palette
-  `{name, states{}, version=18168865}`. Known Java→Bedrock name remaps (`grass_block→grass`, `cobweb→web`,
-  `dirt_path→grass_path`, …); reverse-map on import so `paste foo.mcstructure` restages on the Java server.
-  Honest limit: voxels have no blockstates, so waterlogged second-layer is all `-1`; unknown names are
-  emitted as `minecraft:<java>` (Bedrock places air if it does not know them).
-- **FAWE: research only, no dependency.** Owner's 6 GB phone already runs Paper+Geyser+Via*+DiscordSRV —
-  FAWE would bypass GHBot undo/ghost/drift-guard, and we already export Sponge `.schem` which FAWE eats
-  if a dedicated creative box appears later. Write-up: `docs/RESEARCH-mcstructure-fawe.md`.
-- **Smoke 607/607** (+18): LE sniff vs vanilla `.nbt`, `format_version` LE int 1, size TAG_List not
-  Int_Array, deterministic palette, two layers + `-1` voids, ZYX diamond_block at local (0,3,5)=index 23,
-  remaps + reverse-map round-trip, `export format mcstructure/bedrock` writes exactly one file, codec
-  registered. Mutations G (XYZ index) / H (size as Int_Array) / I (skip grass remap) killed exactly
-  their pins.
-- **Live-verified on sandbox Paper 1.21.11-132:** pasted 3-block JSON spec staged → `export mcs_live mcstructure`
-  → 409-byte LE file (`0a 00 00 03 0e 00 format_version 01 00 00 00`), namespaced palette present.
-
-### What's new in v0.27.0 (Phase E start — undo drift-guard + small-batch safety; Phase D dropped by owner)
-
-- **Undo drift-guard (Q1, green-lit):** `undo` now verifies *natural drift* before restoring.
-  Every undo snap records old→new per position; before reverting, GHBot checks the world still
-  holds what the edit left behind (exact per-position compare — unreadable positions are skipped,
-  never counted). Drift found → **non-destructive refusal** (`peekForUndo`; the stack survives):
-  the message names the drift count and the force path (`GH000 undo confirm [minutes]`), the audit
-  log (`logs/edits.log`) records both the refusal and any confirmed overwrite. No drift → `undo`
-  behaves exactly as before. Live-proven: drift → refuse → drifted block survives → `undo confirm` →
-  reverted with "(drift overwritten as confirmed: 1 position(s))".
-- **Web `local-bypass` (viewer local-mode, opt-in):** `server.web.local-bypass: true` in config.yml
-  → requests **from the server's own device** (127.0.0.0/8 dot-checked / ::1) skip the login page —
-  the owner browses the console on the host phone itself without re-entering the boot-token.
-  LAN/remote devices still hit the v0.23.1 gate; default stays OFF (secure by default).
-- **Paste-ambiguity prompt:** `paste castle` with no exact file but matches in the library →
-  asks with real candidates (`did you mean castle-hill.json, castle2.schem?`) instead of a dead
-  "no such file" — and never guess-pastes. Stem/prefix/substring matching, extension-aware, ≤6 shown.
-- **Catalog auto-refresh on empty:** boot never refreshed the server-command catalog (only
-  `refresh`//gh reload did) — 2 s after enable an empty catalog now refreshes itself
-  (live: `auto-refreshed on empty: 213 commands`).
-- **Smoke 589/589** (+10, v0.27.0): drift exactness/unreadable-skip/zero-drift, peek non-destructiveness,
-  loopback host matrix (incl. `1270.0.0.1` boundary), config parse + secure default, candidates
-  ordering/empty, two source drift-guards (bypass wiring, auto-refresh wiring). Mutations G/H/I
-  each killed exactly their pins.
-- **Live-verified on sandbox Paper 1.21.11-132** (see bullets above) + no-drift undo regression +
-  audit footer regression + clean shutdown.
-
-### What's new in v0.26.0 (audit fix-advisor — Phase E2, owner-proposed "hand me the fix, correctly")
-
-- **Browse-ability:** digest groups are now **numbered** (`• 1) server (WARN ×6, 5 lines)…`) and the
-  footer tells you how to drill in. `audit show <n>` renders **every captured line + stack frames**
-  for group #n (bounded 25 lines, truthful trim note, truthful "last seen N min ago" — synthetic
-  stamps never claim absurd ages). Out-of-range answers honestly (`valid: 1..N`, `ring is empty`).
-- **`audit fix <n>` — the fix, from a knowledge base:** new hand-editable
-  **`plugins/GHBot/audit-fixes.yml`** (copied at boot, `audit reload` re-reads without restart).
-  Your rules are matched BEFORE the **19 built-in rules** (release-behind, plugin-update, missing
-  dependency, wrong Java, API mismatch, enable-failure, offline-mode, OOM, tick-lag, network, TLS,
-  AI-401, geyser-update, vault-no-provider, unknown-command, auth-servers, port-bind,
-  world-corruption, audit-selftest) — matched on the WHOLE group hay (lines + stacks); `%s` renders
-  the source name. Every reply names its rule and where it came from (`audit-fixes.yml`/`built-in`).
-- **AI-guess fallback (clearly labeled):** when no rule matches AND a provider is configured, the
-  bot asks it once on a dedicated memory lane (never pollutes your real chat memory) and labels the
-  answer "🤖 AI guess (unverified — double-check before acting)"; no provider → honest "no known fix,
-  add a rule" instead of silence.
-- **Update-table honesty (owner-evidence fixes):** `audit updates` now answers with the CURRENT
-  table **immediately** (the "results arrive in a moment" that then stayed quiet is gone — live
-  catch from your logs) plus a truthful "last checked N min ago"; pre-release targets get
-  `· ⚠ pre-release build — test on a copy first` (your ollama had overclaimed "all three safe").
-- **Auto-tool coverage:** literal `audit show|fix <n>` / `audit updates|reload|clear|selftest` and
-  natural phrases ("how do I fix the error 2?") route deterministically — the v0.25.0-era gap where
-  `audit reload` silently fell to the AI is pinned against (live catch).
-- **One shared group ordering** (`orderedGroups`) feeds digest/show/fix — a group's NUMBER can never
-  mean different things on different surfaces.
-- **Smoke 579/579** (+24): ordering, numbering+footer, show-fidelity/truthful-bounds/age, KB
-  parse/precedence/malformed-yml/broken-regex/%s-render, fix routing, pre-release notes, check age,
-  auto-tool literal+natural routing, clean-digest no-footer. Mutations D/E/F each killed exactly
-  their pins (D also killed the render pin — same wrong behavior, acceptable).
-- **Live-verified on sandbox Paper 1.21.11-132:** KB boot copy ("2 file + 19 built-ins"), numbered
-  digest, `audit show 1` full banner browse, `audit fix 1` served by the FILE rule (owner precedence
-  proven), yml edit + `audit reload` + new text in the very next fix answer, selftest →
-  nothing-to-fix rule, synchronous update table, out-of-range truth, strict-set regression.
-
-### What's new in v0.25.0 (eyes lattice & Good-Result build pack — Phase C of the owner-approved batch)
-
-- **Eyes lattice (AI-grade terrain):** `scan` now hands back a per-column **`x,z: y material` absolute
-  grid** (stride tiers: ≤8 → every column, 9–32 → every 2nd, >32 → counts-only), budget-capped with a
-  truthful `… +N column(s) trimmed` marker. The FULL grid always lands in `logs/scan/grid-<ts>.log`.
-  One shared composer (`TerrainCommands.toolScanReply`) serves BOTH the `GH000 scan` command and the
-  AI/AutoTool surface — the v0.24.0-era drift where the tool path answered counts-only is gone
-  (live-caught pre-ship; drift-guard smoke pin added).
-- **Viewer scan layer:** the 3D viewer gains a `scan` checkbox — the last scan renders with the SAME
-  block renderer via `/api/scan/last` (`{origin, radius, blocks[]}`, voxels re-based; 404 → friendly
-  toast + auto-uncheck). Untoggling restores your build preview.
-- **Look-then-set precision loop:** `set <block> at <x y z|here|me>` catalog entry, a strict
-  AUTO-TOOL matcher (`place|set <block> at x y z`, negative coords fine, truthful "unknown block"
-  feedback), and a PROMPT block teaching the AI: scan/look first, do the ±Y math, place with `set` —
-  never tell the admin to run `/setblock` by hand. Live-verified: natural language → placed block
-  confirmed in-world via vanilla `execute if block`, then `undo` → air.
-- **Good-Result build pack (retrieval-augmented quality, no GPU needed):**
-  - `teach <name> [staged] gold` — gold-tagged samples synthesize a palette-compressed **verbatim
-    few-shot exemplar** (≤80 blocks) injected into the build reference prompt; `dataset` shows
-    `§6[gold]` markers. Gold round-trips through the dataset files.
-  - **`plugins/GHBot/styles.yml`** — hand-editable style sheets (abandoned/medieval/modern/rustic;
-    e.g. "abandoned" = block-decay mix + ~15% missing wall/roof + vines/cobwebs + no symmetry).
-    Editable on disk, loaded at boot.
-  - **Two-pass generation** for complex builds: plan → per-part spec generation → per-part validation
-    with ONE feedback retry carrying the real parse diagnostic → merge (merged name honestly carries
-    `(partial: N part(s) dropped)` when a part fails twice).
-- **teach/dataset revived** from the shelved surface (they power the gold pack); catalog/help/prompt
-  contract pins updated to match.
-- **Deferred (owner told):** the deterministic-skeleton stretch idea (block-brush pre-pass) stayed on
-  the whiteboard — the three quality levers above are the phone-safe 80% of it.
-- **Smoke 555/555** (+22): lattice stride tiers/budget-trim/center-keep, null guards, toolScanReply +
-  source drift guard, scan-feed JSON shape, strict-set display + negative-coords, auto-tool no-`add`
-  passthrough, precision-prompt block, gold synth/save/load/list marker/≤80 truthful-skip, style
-  match + inject, plan-parse records-or-strings cap 4, part/feedback prompts, merge partial name,
-  two-pass contract + shelved-surface contract updates.
-- **Live-verified on sandbox Paper 1.21.11-132:** lattice reply + grid file + `/api/scan/last`
-  (81 columns for r=4), set/undo in-world truth, strict-set via chat with negative coords,
-  styles.yml boot copy, audit regression, auth matrix, clean shutdown.
-
-### What's new in v0.24.0 (console-log auditor — Phase B of the owner-approved batch)
-
-- **The ask (owner re-scope):** a console AUDITOR, not a console mirror — "why we need 2
-  server logs right?" GHBot watches WARN/ERROR/FATAL, tells you *what* broke, *which
-  plugin*, *what to do*, and *what can be updated*. Nothing else.
-- **`LogWatch`** (`dev.ghbot.audit`): attaches a **reflection-only dynamic-Proxy log4j2
-  appender** to the ROOT logger config (zero compile deps; feature-off with a one-line
-  note when log4j-core is absent) → bounded ring (200), consecutive-repeat collapse ×N,
-  IPv4/ports stripped `<ip>` (privacy), 8-frame bounded stacks. CraftBukkit's JUL→log4j
-  forwarding means one appender sees **plugins + vanilla + Paper**. Detaches cleanly in
-  `onDisable`. Design cross-validated against **DiscordSRV / JDAAppender** (same root-
-  logger attach, same level gating, same `isStarted=true` lifecycle; we additionally
-  capture FATAL, which JDAAppender's level map drops, and the ring is bounded — their
-  queue is not).
-- **`AuditService.digest()`** — severity-first grouped digest, max 6 groups + radar line:
-  attribution by logger-prefix (installed plugin roots) → stack-frame fallback →
-  server-core mapping (net.minecraft/mojang/bukkit/papermc/spottedleaf + **thread-name
-  fallback** for nameless loggers — Paper's own update banner logs with NO logger name);
-  **suggestion rules** (class-not-found, java-version, enable-fail, deprecated, OOM,
-  network, TLS, generic-exception, release-behind, **AI-provider-401**) scan the WHOLE
-  group incl. stacks; mixed-line groups render truthfully (`×6, 5 lines` + the most
-  informative line — never a fake `×N` on a border frame).
-- **`UpdateRadar`** — installed-only checks, async, first pass +60 s then daily, notify
-  **quietly once** per (plugin→latest) persisted to `plugins/GHBot/updates-notified.yml`:
-  Paper via **fill v3** (`…/builds/latest` → id), Essentials via GitHub releases,
-  Geyser-Spigot / floodgate / ViaVersion / ViaBackwards / ViaRewind / LuckPerms via
-  **Modrinth v2** (loader-filtered entry pick — first entry is `-Velocity` for geyser!),
-  JSON parsed via on-classpath SnakeYAML. One console line ONLY when something is behind.
-- **Surfaces:** bot command `audit [updates|clear|selftest]` (catalog → AI tool, AUTO-TOOL
-  phrases "any errors?"/"check for updates", web, in-game, console), AI prompt usage hint,
-  `audit selftest` emits a real WARN to prove the plumbing end-to-end.
-- **Smoke 533/533** (+33): ring collapse/evict/stripIP, attribution paths, server-core map,
-  every suggestion rule, digest grouping/ordering/empty-state/banner-truthfulness/since-
-  boot age, fromThread, radar compare + modrinth/github/fill parsers + quiet-once notices +
-  line, AUTO-TOOL routing. Three mutation suites killed exactly their pins.
-- **Sandbox live run (owner build 1.21.11-132):** appender attached silently (no
-  unavailable-note) → digest live: `• server (WARN ×6, 5 lines): "However, you are 4
-  release(s) behind the latest stable release (26.2)!" — server reports a newer release
-  — schedule an update…` + `• GHBot (WARN ×5, 3 lines): "AI provider polls … HTTP 401…
-  — set a valid api-key under ai: in config.yml…"` + `updates: all current (1 checked)`
-  (fill says 132 == the owner's build). AUTO-TOOL "any errors?" → audit ✓; selftest ×3
-  collapses ✓; v0.23.1 auth matrix re-green (302 bounce, POST login, cookie ✓).
-
-### What's new in v0.23.1 (login UX: return-to-destination)
-- **Login now lands you where you were going** (owner report: it dumped everyone on the
-  status page). Unauthenticated → bounced to `/login?next=<original path>`; after login
-  you're 302'd back there (e.g. `/console`, `/view/<id>`). Default landing with no
-  destination: **`/console`** (the chat console = the owner's main tool), not the status page.
-- **Status page finally links the console** (`status · console · previews`).
-- Open-redirect guard: `next` accepts only same-site absolute paths (`//evil.com`,
-  scheme/control/quote tricks → `/console` fallback). Pins + live curl matrix (7/7 green
-  on the owner build). Smoke **500 checks** (+7).
-
-### What's new in v0.23.0 (Web-console login token — Q3 · batch plan: `docs/PLAN-next-batch-v0.23-v0.27.md`)
-- **:8580 is admin-only now (the owner's design: CONF-style token shown ONLY in the server
-  console).** At startup GHBot mints `WEB-########` (SecureRandom) and prints it once in the
-  server console / latest.log; every web route (`/`, `/chat`, `/console`, `/cmd`, `/upload`,
-  `/api/*`, `/view…`) redirects unauthenticated browsers to `/login` (401 JSON for API-ish
-  paths). Optional fixed token: `server.web.token:` in config.yml.
-- **Login → HttpOnly session cookie** (128-bit id, 12 h sliding expiry, in-memory — a
-  restart logs everyone out). **Brute-force guard:** 5 wrong tries/min per IP → 10 min
-  lockout; fails/lockouts/auth-blocks audit-log to the GHBot web log (never the token).
-- **`/gh webtoken`** (op-only, as always): regenerates the token, logs all web sessions
-  out, prints the new token to the op AND to the server console (the console-log-rescue
-  line — otherwise a web-only owner could lock themselves out; found in live testing).
-- **Live-validated on sandbox-local Paper 1.21.11-132 (= owner build):** full curl
-  matrix — 302/401 without cookie; 5-bad→429-locked (10 min); correct-token-while-locked
-  rejected; boot mint differs across restarts; cookie passes `/cmd plugins` + `/view`;
-  regen kills the old cookie + old token; regen token recoverable from latest.log.
-- Smoke **493 checks** (+20: 15 auth-rule logic pins incl. per-IP lockout/TTL/constant-time
-  verify + 5 real-HTTP wire pins against a headless HttpServer).
-
-### What's new in v0.22.4 (jar version-stamp fix — full story: `docs/FIX-0.22.4-version-stamp.md`)
-- **The 0.22.3 jar was stamped `0.22.2`** — every v0.22.3 fix ran live, but
-  `version GHBot` (and the plugin list/load banner) reported 0.22.2, because Gradle's
-  `processResources` `expand(...)` map is NOT an up-to-date input: the bump happened
-  without `clean`, so the jar re-assembled new code over cached old resources.
-  Reproduced in-lab on Gradle 8.10.2 (jar named 0.22.5-TEST carrying a 0.22.4 stamp).
-- **Fix:** `processResources { inputs.property("version", project.version); … }` —
-  the stamp now re-renders on every version bump, clean build or not (proven in-lab).
-- **Guards so it can't slip again:** smoke pins 472–473 (classpath `plugin.yml` stamp
-  must equal `build.gradle.kts` version — mutation-validated to FAIL on drift) and a
-  `check-docs.sh` jar-stamp check at ship time.
-- Live-validated on sandbox-local Paper 1.21.11-132 (= owner build): load banner
-  `GHBot v0.22.4`, `version GHBot` → `GHBot version 0.22.4`, `plugins` intact.
-- Smoke **473 checks** (+2). Owner action: swap jar, restart — no config changes.
-
-### What's new in v0.22.3 (live-batch regression sweep — full story: `docs/FIX-0.22.3-cmd-dispatch.md`)
-- **`cmd` ACTUALLY RUNS on Paper 1.21 now (was: every command "✗ failed").** Root cause
-  (paper-source + probe-proven): `CraftServer.dispatchCommand` converts every sender via
-  `VanillaCommandWrapper.getListener`, which **throws** for plain custom `CommandSender`s —
-  and v0.22.2's one-try shape let that throw also skip the console fallback. Fix: dispatch
-  through Paper's own `io.papermc.paper.commands.FeedbackForwardingSender` (all feedback —
-  legacy/Adventure/vanilla — into our consumer; reflection-only, zero new deps; console
-  fallback kept for Spigot/old Paper). Failures now carry a reason note instead of silence.
-- **`confirm` actually executes** (was: re-BLOCKED + fresh CONF token forever). The CONF-…
-  token now bypasses the guard — it IS the confirmation. Live: `stop` → confirm halts the server.
-- **`admin read server.properties` works** (was: "Path escapes server dir." whenever the world
-  container resolved relative/`File(".")` — exactly the owner's Termux setup).
-- **`scan` sees below y=0** (was: pre-1.18 clamp to minY=0 — 0 blocks on worlds whose ground
-  sits under y=0). Live flat-world: 6724/645504 non-air at minY=-64.
-- **Dispatch audit centralized** in `CmdOutputCapture.capture()` — every path (AI/web/in-game/
-  confirm) audited exactly once, truthfully (BLOCKED is no longer logged as "ok").
-- Smoke **471 checks** (+17) · validated against a sandbox-local Paper 1.21.11-132 (= owner's build).
-- Known quirk: `/gh <botcommand>` via web `/cmd` executes + audits but its reply text races
-  the HTTP response (registry subs are async-by-design); chat/in-game surfaces unaffected.
-
-### What's new in v0.22.2 (Pillar 3: cmd output capture + Pillar-1/2 audit fixes)
-- **Pillar 3 — `cmd` now shows what the server actually said, everywhere.** All four dispatch
-  paths (AI tool/AutoTools, web `/cmd`, in-game `cmd`, `confirm`-ed commands) run through one
-  capture service: a **full-surface `CapturingSender`** (legacy String + **Adventure Component**
-  + bungee `BaseComponent`) dispatches on the main thread, while a **session-scoped JUL handler**
-  catches plugins that log instead of replying (bounded, self-filtered, deduped `console-log:`
-  lines). Root-cause fix: on Paper 1.21 every Component-based reply funnels into Adventure
-  terminal defaults that are **no-ops**, so the old String-only proxy silently discarded most
-  modern plugin output (LuckPerms, DeluxeMenus, vanilla feedback) — this unblocks Milestone 2's
-  LuckPerms runbook. **No new dependency** (log4j-core is dependency-blocked here — evidence in
-  the PLAN doc). Routing is eyes-style: bounded inline reply (web 4000c/40L, in-game 1500c/15L),
-  full output → `logs/cmd/<file>.log` when truncated. Guardrails unchanged (sensitive → CONF).
-- **AUDIT fixes (Pillar-1/2 go/no-go audit):**
-  - **P1-1 (HIGH): template-edit bbox Y/Z transposition fixed** — `edit` template ops
-    (roof/columns/door/window/tree — the **no-AI fallback**) anchored wrong whenever a
-    structure's height ≠ depth. Invisible to smoke because fixtures were Y/Z-symmetric;
-    now covered by asymmetric fixtures, **mutation-validated against the shipped 0.22.1 jar**
-    (old code: roof y=7/cz=2/col 9 → fixed: 6/3/8).
-  - **P1-2: Litematica import handles negative `Size`** (real-world .litematic regions) —
-    0-block decodes fixed. (The old backlog line "litematic paste unsupported" was stale:
-    import shipped in v0.21.46.)
-  - **P1-3: `paste`/`schem import` filenames confined to the library dir** (traversal rejected).
-  - **P1-4: `/upload` rejects oversized bodies DURING the read** (25 MB + 1 byte) instead of
-    buffering unbounded data into the phone's heap first.
-- **Tooling:** `tools/check-docs.sh` + CI step guard README smoke/version claims against the
-  real suite output (the 414-vs-420 drift class is now CI-fatal).
-- Smoke **454 checks** (was 420): +34 — all-surfaces capture, CmdOutput merge/inline/budgets,
-  JUL format, capture wiring + blocked contract + headless degradation, path confinement,
-  asymmetric bbox fixtures, negative-size Litematica, mutation validation.
-- **Open questions for the owner (not blockers):** undo drift-guard (Q1), terraform
-  smooth/raise/lower (Q2 — COMMANDS.md now tells the truth: only `flatten` is implemented),
-  web-console auth token (Q3). See `gh-bot/docs/AUDIT-pillar1-2-go-no-go.md`.
-
-
-
-### What's new in v0.22.1 (Eyes-as-Data + hardening)
-- **Pillar 2 now "sees" as data.** `scan` / `find` / `look` emit a **TerrainSpec** — the same
-  contract shape as a JSON build spec (`{name,palette,blocks[]}`) but in **absolute world coords
-  with an `origin` anchor** — so the Technician gets the world as block data, not prose.
-  - **scan** = surface snapshot by default (top solid block per column, phone-safe); `scan --full [depth]`
-    adds bounded depth below the surface (cap 64). **find** = the found positions; **look** = the
-    single block with its full blockstate (`minecraft:oak_stairs[facing=north]`) preserved.
-  - Routing: bot memory (`eyes.spec`) + `logs/eyes/<name>.json` (full data) + a **bounded inline JSON
-    digest (150 blocks)** to the chat/AI context — full fidelity on disk, no context blowup on the 6 GB phone.
-  - **Round-trip:** `TerrainSpec.toBuildSpec()` translates absolute→relative via the origin and feeds
-    the existing build/edit path, closing the "see → act" loop (`find oak_log` → `replace` → `undo`).
-- **Vanilla block constraint (hardening).** `JsonBuildSpec` now resolves every block name through
-  `Material.matchMaterial` and reports WHY a spec is invalid instead of silently skipping hallucinated
-  names at placement time (the old source of "places fewer blocks than the spec" drift). Blockstate
-  properties are stripped consistently (`oak_stairs[facing=north]` → `oak_stairs`).
-- **Heightmap persistence.** `TerrainSummary.toMap()`/`fromMap()` now save + restore the heightmap
-  (was dropped on reload, so "foundation follows the ground" lost its data). Downsampled for huge scans.
-- **Coordinate parsing unified.** New `CoordResolver.scanTarget()` / `parseWhere()` — one parser shared
-  by `scan`/`find`/`look`/`set`/`replace`/`terraform` **and** `AutoTools`, so `scan 100 at 86 86 262`,
-  `scan 86 86 262` and `scan at 86,86,262` all land on the same spot (the old `at` bug is fixed).
-  `set` also accepts the AI's natural "`set stone at 86 86 262`" order.
-- **`find that` pronoun fallback.** `find that`/`find this` no longer errors — it falls back to the
-  last scan's dominant top block and says so.
-- **Admin-only guard extracted** (`CommandBridge.isAdminSender`) so it's documented + smoke-testable.
-- **Shelved-code freeze policy (D4).** Shelved commands stay in code/git with `// SHELVED v0.22.0`
-  markers; a `ShelvedSurface` smoke check asserts every shelved command is hard-blocked at dispatch
-  and absent from CATALOG/tool-sheet/AI-help. `ToolBridge.LEGACY_ALLOWED` (dead, still listed shelved
-  commands) removed — `ALLOWED == CATALOG` is now the single source of truth.
-- Smoke **420 checks** (was 384): +36 for eyes-as-data round-trip, inline truncation, vanilla
-  constraints, heightmap persistence, coordinate parsing, pronoun fallback, shelved surface, admin-only,
-  AI-prompt shelved-leak, paste offsets.
-- **Batch-test fixes (2026-08-20 evidence review):** the AI system prompt + capability guide still
-  advertised shelved tools (`where`/`save-location`/`workers`/…/`schem download`) → the model
-  hallucinated them; now trimmed to the 4-pillar surface. `edit the dragon's wings` no longer
-  errors on the determiner ("the") — falls back to `here`. `paste <file> 30 10` now respects
-  the x/z (and x/y/z) offset instead of silently pasting at the origin.
-
-### What's new in v0.22.0 (JARVIS-FOR-ADMIN — the 4-pillar reset)
-The owner's decisive refocus: GHBot is now a **Jarvis for the Minecraft server, usable by the
-admin only**. The command surface was cut to exactly 4 pillars; everything else is **shelved**
-(removed from help/tools/auto-detect, blocked at dispatch, but kept in code+git — recoverable):
-- **Pillar 1 — Build:** `build` (design→stage→review), `plan`, `edit`, `schem` (+`schem import`),
-  `paste`, `library`, `export`, `approve`/`deny`/`redo`, `cancel`, `view`.
-- **Pillar 2 — Passive eyes + edit:** `scan`, `find`, `look`, `set`, `replace`, `terraform`, `undo`.
-  (Next step: these output **jsonspec** so the bot literally "sees" the world as block data.)
-- **Pillar 3 — Manage the server:** `status`, `cap`, `device-info`, `provider`, `refresh`, `confirm`,
-  `admin` (config editing w/ backup+rollback), `cmd` (guarded, multi-`;`). (Next step: `cmd` output
-  captured into the chat-console.)
-- **Pillar 4 — Interact:** natural language in the web chat-console; `@GH000 <command>` in-game;
-  `@GH000 chat "<prompt>"` talks to the Technician (AI backend).
-- **Admin-only:** dispatch now hard-blocks non-OP players (`§cGH-bot is admin-only — console/OP
-  required.`); console + ops only.
-- **Shelved (blocked + hidden):** avatar, marker, workers, deploy, undeploy, where, save-location,
-  list-locations, delete-location, teach, dataset, critique, design, image, memory, debuglog,
-  animate, add, editspec, schem download.
-- Smoke **384 checks** (new: catalog-surface, shelved-blocked, admin surface size).
-### What's new in v0.21.45 (Stop ACTUALLY aborts + real Paste + Sponge v3 string-palette import)
-From the owner's v0.21.44 re-test — Stop was pressed (10× "stop requested" logged) yet the
-`plan` call still ran its full 2-min timeout, and import/paste were still broken:
-- **Stop now actually stops.** Root cause was a **session-key mismatch**: the chat flow keys
-  sessions `"GH000|<session>"`, but `/api/cancel` stored the stop flag under the raw
-  `<session>` — so the flag never matched, and the in-flight client lookup also missed.
-  Fixed: `ChatService` now maps raw→full keys, tracks the **executing thread** per session,
-  and `requestStop` marks both keys + **interrupts the thread** (all AI clients' `sendCall`
-  now also abort on `InterruptedException`, clearing the interrupt flag for the pooled
-  thread). So a hung `plan`/`build`/`generateSpec` is aborted in ~a second, not 2 minutes —
-  no more token burn. The console button also now disables into "Stopping…" after one press
-  (no more spam of duplicate "Stopped" bubbles).
-- **`paste` actually pastes** (was a stub): it now reads the file, decodes it via
-  `SchematicImporter.importFile` (Sponge v2/v3, Classic, Vanilla .nbt, Litematica), and
-  **stages it as a ghost** — same approve/deny/redo/export review flow as `build`, with the
-  3D viewer URL + inline `PREVIEW_IMG` in the reply. Target = player location / bot origin /
-  world spawn.
-- **Sponge v3 import decodes real files:** official `.schem` v3 palette values are blockstate
-  **strings** (`"0": "minecraft:stone_bricks"`), not compounds — the importer only handled
-  compounds, so real files imported as **0 blocks**. Now handles strings AND strips
-  properties (`minecraft:oak_stairs[facing=north]` → `oak_stairs`).
-- Smoke **377 checks** (new: paste file-resolution + parse, Sponge v3 string palette + props).
-
-### What's new in v0.21.44 (Stop button + Sponge v3 import fix + batch-test fixes)
-- **⏹ Stop button (the big one):** while a request is running, the **Send button turns into
-  STOP** (like ChatGPT/Claude). Pressing it: (1) POSTs `/api/cancel?session=…` → the server
-  aborts the in-flight AI HTTP request (`AIClient.cancelActiveCall()` on Gemini/Ollama/OpenAI
-  via `sendAsync` + future cancel) so the provider **stops generating → tokens are saved**
-  instead of waiting out the timeout, and (2) aborts the SSE fetch client-side. Works even
-  for hanging `plan`/`build` calls (the `generateSpec exception from ollama: request timed
-  out` 2-minute hang — that was burning the owner's Ollama usage). Closing the tab also
-  auto-cancels (the SSE chunk callback detects the disconnect and stops the AI call).
-- **Sponge v3 import fixed:** `schem import capital-de-wano.schem` crashed with
-  `LinkedHashMap cannot be cast to List` — Sponge v3 stores `Palette` as a compound map,
-  the importer only handled the v2 list. Now handles both. (Still open: `paste` importer
-  stub — Litematica/`paste` backlog.)
-- **Batch-test notes (2026-08-20):** `plan` works but slow provider hangs now stoppable;
-  `set`/`replace`/`save-location` with coordinates still reject the AI's
-  `at <x> <y> <z>` syntax (tool-surface gap — see backlog); `find that` parsed "that" as a
-  block (AI phrasing); guardrails re-verified (`stop` → CONF token → confirm).
-- Smoke **372 checks** (new: `/api/cancel`, `cancelActiveCall` idle-safe, Sponge v3
-  map-palette import).
-
-### What's new in v0.21.43 (from the live v0.21.42 evidence review)
-- **`/api/events` reload-reset fix** — the review feed is in-memory, so a plugin reload
-  resets it while the browser cursor kept counting → new Deny/Approve/Export bubbles were
-  silently skipped until a page refresh. The endpoint now returns `"reset":true` when the
-  cursor is ahead of the feed and the console drops its cursor without rendering the
-  pre-reload replay — events keep showing across reloads.
-- **Vision: one transient-failure retry for Gemini** — the live test hit Gemini's free-tier
-  `503 UNAVAILABLE` ("high demand… usually temporary") and an Ollama timeout. `imageToSpec`
-  now retries Gemini once after 5s on 503/429/RESOURCE_EXHAUSTED (Ollama timeouts are not
-  retried — they're already slow). Live finding: Gemini free tier 503s are transient; retry
-  the image upload if it fails.
-- **Boot notice no longer reads like a 500-block cap** — the tier-1 phone message now says
-  "est. smooth ~N blocks/job (uploaded JSON specs accepted up to 100k blocks — bigger places
-  slower)" instead of "I can build up to ~500 blocks/job".
-- Smoke **369 checks** (new: `/api/events` reset flag).
-
-### What's new in v0.21.42 (mega builds + viewer action feed)
-- **Build-spec cap raised 20 000 → 100 000 blocks** (`JsonBuildSpec.MAX_BLOCKS`) — huge
-  uploaded specs (megastructures, armies, cities) are accepted; the hard limit is now only
-  the practical one (ghost placement is tick-budgeted, so 100k blocks place over a little
-  while on the phone).
-- **Review-activity feed in the chat console:** pressing **Approve / Deny / Export** in the
-  3D viewer now posts a message bubble into `/console` (`✅ Approved "Name" (N blocks)`,
-  `❌ Denied …`, `📦 Exported … (N file(s))`). Server-side: `WebStatusServer.recordReview()`
-  appends to a small feed (capped 200) + echoes to `chat-console.log`; the console polls
-  `/api/events?after=<cursor>` alongside `/api/status` and renders new events as centered
-  dashed bubbles. Works across tabs (viewer + console open at once).
-- Smoke grew to **368 checks** (cap boundary 25k-accept / 100 001-reject, events feed + cursor).
-
-### What's new in v0.21.41 (session eviction + thread safety + init-order fix)
-- `ChatService.sessions` → `ConcurrentHashMap` with **TTL eviction** (30 min stale, cap 100
-  sessions) — prevents unbounded memory growth on long-running servers (the 6 GB phone).
-  A cleanup task sweeps every 5 min (async-safe); the web status sidebar now shows a
-  **Sessions** count for monitoring.
-- `BuildService.running`, `GhostService.staged`, `UndoManager.stacks/open`, `BotRegistry.bots`
-  → `ConcurrentHashMap` — safe against async chat events / concurrent access.
-- `JsonBuildSpec.parseWithDiagnostics()` — parse failures now explain WHY (missing
-  `palette`/`blocks`, empty arrays, malformed JSON) instead of a bare null; used by the
-  vision fallback chain for clearer errors.
-- **Init-ordering fix:** `avatarService` / `schematics` are now constructed BEFORE they're
-  wired into the ghost/build services (previously the wiring passed null).
-- Smoke suite grew to **363 checks** (session eviction + diagnostics).
-
-### What it is (v0.22.0)
-GH-Bot is a **PaperMC plugin** (Java 21, Paper API 1.21.11, single jar, no external deps —
-even JSON is hand-rolled) that turns a Minecraft server into a **hands-off AI builder + admin
-agent**. The owner runs it on a **phone** (Termux, 6 GB RAM, Paper 1.21.11 + Geyser/Floodgate
-for Bedrock players, Auto-MCS). Default bot id **`GH000`**; owner's Bedrock player is
-`.SerthGembel009`. Admin-only server. The owner batch-tests from the phone web console
-(`http://<server-ip>:8580/console`) and pastes **evidence** (`latest.txt` +
-`chat-console.txt` + `commands.txt` + screenshots) for the agent to debug.
-
-### The core mechanic (understand this first)
-**The JSON build spec is the CONTRACT.** Since v0.21.39, if a build prompt contains a complete
-JSON build spec (`{"name":…, "palette":{…}, "blocks":[{x,y,z,block},…]}`), GHBot parses it
-**directly and stages EXACTLY those blocks** — the AI is never asked to re-interpret it (that
-was the historical source of drift; see §17 v0.21.33–0.21.38). "100% faithful" means:
-**staged build == JSON spec**, byte-for-byte. JSON specs can be huge (owner's dragon is
-**141 KB / 1,852 blocks**) — hence the **📎 upload button** (v0.21.40) so a 140 KB spec never
-has to be pasted into a chat bubble.
-
-### Feature surface at v0.22.0
-- **Builder:** `build <prompt>` → JSON spec or DesignSpec primitives → ghost stage → `approve/deny/redo/export`; `--direct`; `plan` (text-only); `cancel`; `critique`. Pasting a JSON spec executes it directly (v0.21.39). No template fallback — failures are reported with a logged reason (v0.21.38).
-- **Review surfaces:** 3D web viewer `/view/<id>` (voxel data.json, camera centers the build's true vertical midpoint v0.21.31) + **server-side isometric preview image** `/view/<id>/preview.png` (v0.21.34) rendered **inline in the chat bubble** (v0.21.35) + in-game ghost.
-- **Web console `/console`:** SSE streaming chat (quoted-JSON chunks v0.21.25), provider-agnostic tool protocol accepting BOTH `⟦tool:…⟧` and `[tool:…]` markers (v0.21.37), auto-tools for plain-language commands (`scan …`, `find …`, `build …`, `deny`, `approve`, `admin …`, `confirm CONF-…`, …), on-device secretary (WebLLM/Transformers.js, optional), **📎 upload button** (v0.21.40): `.json` → staged directly; image → vision → JSON spec → staged.
-- **Admin (Pillar J):** `admin read/set/backup/restore/rollback/reload/menu` on any server file (two-stage YAML/`.properties` validation, backups, `ADM-…` rollback tokens, reload health-check auto-rollback); `cmd <line>` console gateway with hard guardrails (`stop/restart/op/ban/…` blocked → `CONF-…` token + `confirm`), multi-step `;` batches.
-- **Terrain/edit/schematic:** `scan/look/find` (TerrainScanner), `set/replace/terraform/undo` (drift-guarded edits with structural anchors), 5 schematic formats (Sponge v2/v3, Classic, Litematica, Vanilla .nbt), build-learning dataset (RAG).
-- **Crews/avatar:** `deploy <id> [role]` worker bots, Enderman avatar, markers, `teach`/`critique`.
-- **AI providers:** Gemini (free tier) / Ollama (incl. `minimax-m3:cloud`) / OpenAI-compatible extras (Pollinations etc.) / rule-based fallback; auto-failover chain on quota errors. Ollama JSON mode (`format:"json"`) + temp-0 for deterministic structured output (v0.21.36/38).
-
-### Verified live (evidence 2026-08-17, v0.21.39 batch test)
-- ✅ Fast-path confirmed in production log:
-  `[GHBot] build: JSON build spec detected in prompt — staging 259 exact block(s) directly (no AI interpretation).`
-  → Hardcore Fortress Estate staged with exactly **259 ops**, `json-exact`.
-- ✅ 141 KB `ancient_dragon.json` parses in ~73 ms → **1,852 exact blocks** (regression-tested in smoke).
-- ℹ️ Cozy Cabin 62-vs-65 blocks is **NOT a bug**: the ghost stager skips target positions that
-  already hold the same material, so the change-count can under-report on pre-built terrain
-  while the build itself is exact.
-- ⚠️ Env quirks (documented, avoid re-discovering): Ollama cloud **403** = model needs Pro;
-  Cerebras **404** = use `gpt-oss-120b` (not `gpt-oss:120b`); Pollinations = `gen.pollinations.ai/v1`
-  (older `text.pollinations.ai`/`enter.pollinations.ai` endpoints are dead).
-
-### Build, test, ship (IMPORTANT — sandbox rules)
-The dev workspace is a sandbox that **resets between turns** (`/tmp` and `~/.gradle` are wiped).
-Never assume tooling is present. Every turn that touches code:
-1. `cd /home/user/gh-bot && bash tools/setup-build.sh clean build` — restores JDK 21 + Gradle 8.10.2 into `/tmp`, builds the jar to `build/libs/GHBot-<ver>.jar`.
-2. Recompile + run the smoke suite (currently **620 checks**):
-   ```bash
-   CP="build/libs/GHBot-<ver>.jar:$(find /tmp/gradle-home/caches/modules-2/files-2.1 -name '*.jar' | grep -v sources | tr '\n' ':')"
-   /tmp/jdk21/bin/javac -proc:none -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
-   /tmp/jdk21/bin/java -Djava.io.tmpdir=/tmp/javatmp -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest
-   ```
-3. Keep the suite green **before** shipping; add a smoke check for every fix.
-4. Ship: `cp build/libs/GHBot-<ver>.jar /home/user/releases/GHBot-<ver>.jar` **and delete the previous version's jar in the same commit** (owner policy — `releases/` always holds ONLY the newest jar; done since v0.22.2). Then mirror the GitHub **Releases page** (same policy: delete previous release + tag, create `v<ver>` with the jar attached): `GITHUB_TOKEN=<pat> bash gh-bot/tools/github-release.sh <ver> "<title>" <notes-file> [sha]`.
-5. Never bump versions backwards; bump `build.gradle.kts` `version` each release.
-
-Hard constraints:
-- Workspace snapshot **excludes any path segment named `build`** → the package is `dev.ghbot.builder` (never create `dev.ghbot.build`); compiled jars live in `build/libs/` which is excluded, so always copy to `/home/user/releases/`.
-- **Gson is blocked** on the mirror — JSON is hand-rolled (`ai/JsonUtil.java`, `builder/JsonBuildSpec.java`).
-- A full Paper server **CAN boot in the sandbox** (2 GB RAM, since v0.22.3): small heap flags (`-Xmx640M -XX:+UseSerialGC -XX:MaxMetaspaceSize=192M -XX:MaxDirectMemorySize=64M -Xss512k`), flat world, view/sim-distance 2, paper jar via fill.papermc.io **v3** (downloads API v2 is sunset). Even so, verification = headless smoke **first**, then a sandbox-local live run when the fix is runtime-visible, then the owner's live logs. Never claim a phase works without a smoke and/or live check.
-- Server must bind **0.0.0.0** (phone web console), and browser-facing pages must not call `localhost` — use relative URLs (web console and viewer do this already).
-
-### Backlog / known issues (next-agent TODO)
-1. **Vision quality tuning** — v0.21.40 image→spec works mechanically (Gemini `inline_data`, Ollama `images` array) but needs real-world iteration: does the model's JSON spec actually match the owner's reference image? Tune `ChatService.VISION_SYSTEM` (schema-in-prompt + temp-0, same lesson as v0.21.38). v0.21.41 added `parseWithDiagnostics()` for better error reporting when vision returns garbage. Optional auto-verify loop: render preview → diff vs uploaded image → feed score back.
-2. **Upload UX** — the Technician may echo the whole pasted spec back into chat (`⟦tool:build …⟧` with the raw JSON). Works but noisy; optional: dedupe/summarize when the user's message already IS the spec (upload already summarizes via `summarizeBuild`).
-3. **Schematic backlog** — Litematica import, `.mcstructure` (Bedrock) export, FAWE fast-paste, viewer local-mode (offline) still open.
-4. **Staging scale** — 1,852-block dragons place over a few seconds (tick-budgeted ghost placement). If too heavy on the 6 GB phone, consider a scale-down/decimation option for huge specs.
-5. ~~**Session memory leak**~~ — ✅ fixed in v0.21.41 (TTL eviction + ConcurrentHashMap).
-6. ~~**Init ordering bug**~~ — ✅ fixed in v0.21.41 (avatarService/schematics now created before wiring).
-
----
-
-## All phases — done
-
-| # | Phase | Delivered |
-|---|---|---|
-| 0 | Foundation | config.yml (mirrors old settings.json), bot registry (GH000+), command registry + dynamic help, WIB logging, `/gh` console, `@GH000` chat parser, sessions. **Server-verified.** |
-| 1 | Core Brain | live CPU/RAM/TPS/uptime (silent sampler), Capability Estimator (P16), `/gh device-info`, `@GH000 cap`. |
-| 2 | Terrain Eyes | `scan` (you/player/coords, async), `look`, `find`, heightmap, `CoordResolver` (`.Bedrock` names). **Server-verified.** |
-| 3 | Block Editing | `set`/`replace`/`terraform`/`undo [min]` — tick-budgeted, audit → `logs/edits.log`. **Server-verified.** |
-| 4 | Locations & Web | `save-location`/`where`/… (persistent) + web status page (0.0.0.0:8580). |
-| 5 | AI + Chat | Gemini free / Ollama / OpenAI / rule-based fallback; `chat`, `design`, `provider`. |
-| 6 | Builder | DesignSpec + 12 primitives + templates; `build`/`plan`/`cancel`; progress, stages (P6), TPS-pause (P3), undo. |
-| 7 | Ghost Review | build stages in-place → `approve`/`deny`/`redo`/`export` + `animate`; `--direct`. |
-| 8 | Schematics | 5 formats (Sponge v2/v3, Classic, Litematica, Vanilla .nbt) via hand-rolled NBT writer. |
-| 8b | Build-Learning Dataset | NBT reader, importers, downloader (25 MB cap), LearningSample (palette/style tags), persistent dataset — NotebookLM-for-builds. |
-| 9 | Web 3D Preview | **your viewer served at `/view/<job>`** — real data.json, browser Approve/Deny/Export, `@GH000 view`. |
-| 9b | Web Console (v2) | **agent console** at `/console`: **SSE streaming chat** (Gemini/Ollama/OpenAI stream), **tool calling** (`scan`/`build`/`cmd`/`admin read`/`look`/`undo`/`status` via a provider-agnostic protocol), command bar (`/cmd`), live status sidebar (`/api/status`), and **on-device local AI (WebLLM/MLCEngine)** — no cloud, no API key, runs in your browser via WebGPU. Model picker: **Qwen3.5 0.8B / 2B / 4B** (2B = sweet spot for 6 GB), first download ~0.5–2.6 GB then cached + offline, thinking-mode toggle. **v0.21.2 — Secretary Mode:** the local AI is promoted from brainstorm-buddy to **secretary** — it pulls the technician's capability sheet (`/api/tools`), keeps real conversation history, and wraps its proposals in `⟦draft⟧…⟦/draft⟧` → the console shows an editable draft card with a **📨 Send to technician** button that routes the draft through the server brain. Quick chips always run on the server. |
-| 10 | Structure Editing | `edit <target> <instruction>` — snapshot → EditSpec (AI or template) → apply → undo; `editspec` preview. |
-| 11 | Command Learning | `refresh` catalog, `cmd <line>` as console (full trust **with guardrails** — systemic commands blocked → `confirm <CONF-token>`; multi-step via `;`; audit → `logs/commands.log`), `add <thing>` keyword match. |
-| 11b | Admin Operations | `admin read/set/backup/restore/rollback/reload/menu` — safe YAML + **`.properties` editing** w/ backups + validation + `ADM-…` rollback tokens, **server files** (`server.properties` motd/resource-pack, `bukkit.yml`, `spigot.yml`, `paper-global.yml`), **DeluxeMenus menu creation**, audit → `logs/admin.log`. |
-| 12 | Avatar & Markers | Enderman statue (AI-disabled) at build sites, `avatar on/off`; `marker <name>` waypoints; auto-save approved builds. |
-| 13 | Archetypes | house/hut/mansion/tower/castle/ship/lighthouse/windmill/barn/fountain/bridge/gateway/tree/path/plaza. |
-| 14 | Mega + crews | `deploy <id> [role]` / `undeploy` / `workers` — runtime worker bots, roles (architect/builder/admin). |
-| 15 | Teach + RAG | `teach <name>` → dataset; **retrieval-augmented design** (dataset references in the AI prompt); `critique`. |
-| 16 | Toggles & polish | `image on/off` (ai-image-preview stretch toggle); final polish; dual-version ready (1.21.x API, runs on 26.x). |
-
----
-
-## v0.21 — Edge-case hardening (your list, all in)
-
-| # | Watchout | Fix shipped |
-|---|---|---|
-| 1 | **State drift during edits** — blocks moved between snapshot & apply | `edit` now fingerprints the live region (FNV-1a) before planning **and** before applying. On mismatch → warn + re-scan + regenerate the edit plan. |
-| 2 | **YAML hot-fix corruption** — LLM writes bad YAML, plugin fails silently | `admin set` is **two-stage**: parse current file (refuse if already broken) + round-trip the exact bytes before writing. Every edit keeps a backup + a persisted rollback token. |
-| 3 | **Context blowup from big build RAG** | Dataset refs in prompts are now **compact structural fingerprints** (bbox, density, foundation/roof materials, top palette) — never voxel matrices. |
-| 4 | **Full-trust command guardrails** | `stop`/`restart`/`reload`/`op`/`deop`/`ban`/`pardon`/`whitelist`/`rm -rf` etc. are **blocked by default** — they mint a `CONF-…` token you confirm with `confirm <token>` (even when the AI asks). Non-bypassable, 5-min expiry. |
-| 5 | **Structural anchors in edits** | AI + templates get a named anchor map (`foundation_base`, `roof_center`, `north_wall`…) — roofs/windows/doors/columns are now sized & placed from the **real bbox**, not hardcoded. |
-| 6 | **Audit indexing + rollback** | `logs/admin.log` and `logs/edits.log` carry `[token=ADM-…]` / `[token=EDT-…]`. `/gh admin rollback [token]` reverts config edits in one command (indexed across restarts). Reloads are health-checked: if a plugin dies on reload, the last admin edit **auto-rolls back**. |
-| 7 | **Higher-spec scaling** | Capability estimator now has a **tier 4 GIGA-CHAD (32 GB+)** — 10-bot crews, 100k+ block jobs, big local AI. Low spec still gets the full feature set. |
-| 8 | **v0.21.3 — Generic admin ops (NOT just DeluxeMenus)** | The technician edits **any** server file: `admin set server.properties motd "…"` (or `resource-pack`), `bukkit.yml`, `spigot.yml`, `paper-global.yml` — same backup/validate/rollback safety, `.properties` format-aware (comments preserved). And `cmd` now runs **multi-step batches** with `;` (e.g. LuckPerms rank setup), each line audited + guarded. DeluxeMenus was the example, never the limit. |
-
-## Quick start (batch-test checklist)
-
-1. Drop `GHBot-0.22.2.jar` into `plugins/` → restart. Console: `/gh status`, `/gh device-info`.
-2. In-game: `@GH000 help` (lists ~27 commands) · `@GH000 scan here` · `@GH000 build a house` → walk the ghost → `approve`/`deny`/`redo`.
-3. **Browser review:** `server.web.enabled: true` → restart → `@GH000 build a tower` → `@GH000 view` → open URL → orbit → **Approve**.
-4. **Web chat:** open `http://<phone-ip>:8580/chat` (old page) or `/console` (agent console). **Secretary (no cloud):** click **Load secretary** — needs Chrome/Edge on Android. WebGPU requires a secure context, so open `http://127.0.0.1:8580/console` on the phone itself (or via an https tunnel) — plain `http://<LAN-ip>` won't expose WebGPU. Pick **2B** for a 6 GB phone, **4B** for max quality when the server is idle. **Workflow:** ask the secretary to draft a request → edit its `⟦draft⟧` card → **Send to technician** (chips still execute on the server directly). **Upload (v0.21.40):** the **📎** button next to the input — pick a `.json` build spec (staged directly, no paste) or an image (GH-bot sees it → generates the build).
-5. **AI:** `ai.providers.gemini.enabled: true` + free key (or Ollama) → `@GH000 chat hi`.
-6. **Dataset:** `@GH000 schem download myhouse <url>` → `@GH000 dataset list` → `@GH000 build a castle` (now style-aware).
-7. **Editing:** `@GH000 build a house` → `@GH000 edit here replace oak_planks with spruce_planks` → `@GH000 undo`.
-8. **Admin:** `@GH000 admin menu shop "&aShop"` → `/dm reload` → open `shop` in-game.
-9. **Server files (v0.21.3):** `@GH000 admin set server.properties motd "WELCOME TO GH-LOUNGE!"` → backed up + token shown → `@GH000 admin rollback <ADM-…>` reverts. (MOTD applies after restart.)
-10. **Multi-step commands (v0.21.3):** `@GH000 cmd lp creategroup PRO; lp creategroup PREMIUM; lp group PRO parent add default` — each line audited; systemic ones still blocked with `CONF-…`.
-11. **Crews:** `@GH000 deploy GH002 builder` → `@GH000 workers` → `@GH000 GH002 build a barn` (parallel crew).
-12. **Avatar/markers:** `@GH000 avatar on` → build → watch the Enderman; `@GH000 marker spawn` → `@GH000 marker list`.
-
-### v0.21 specific tests (new)
-- **Drift guard:** `@GH000 edit here add a roof` — while it plans, break/place a block in the region → you should see "Region changed while planning — re-scanning".
-- **Guardrail:** `@GH000 cmd stop` → should be **blocked** with a `CONF-…` token, not run. Then `@GH000 confirm CONF-…` (only do this if you actually want to test stop!).
-- **Rollback:** `@GH000 admin set DeluxeMenus/config.yml some-key test` → note the token → `@GH000 admin rollback <ADM-token>` → file restored.
-- **GIGA-CHAD:** on your phone it'll say tier 1 — the tier-4 path is smoke-tested for higher-spec boxes.
-
-## Layout
+## Architecture
 
 ```
-gh-bot/
-├── build.gradle.kts                  (Java 21, Paper API 1.21.11; version = current jar)
-├── src/main/resources/ plugin.yml · config.yml · web/viewer.html · web/chat.html · web/console.html
-├── src/main/java/dev/ghbot/  (19 packages, 81 files)
-│   ai/ admin/ agent/ avatar/ bot/ builder/ chat/ command/ config/ core/ edit/
-│   location/ log/ review/ schematic/ session/ terrain/ web/   (+ GHBotPlugin.java)
-└── tools/SmokeTest.java              (620 checks, all passing) · setup-build.sh (sandbox toolchain restore)
-                                       · check-docs.sh (drift guard) · github-release.sh (Releases-page mirror)
-releases/GHBot-0.23.1.jar            (current ship; previous versions deleted at ship time — always;
-                                       GitHub Releases page mirrors: only the newest release + tag exists)
-ai-builder-bot-plan.md                (master plan + §17 full per-version changelog — lives at repo root: /home/user/ai-builder-bot-plan.md)
+gh-bot/src/main/java/dev/ghbot/
+├── ai/              # AI providers (Gemini, Ollama, OpenAI, fallback)
+├── admin/           # Admin operations (config editing, backups, rollback)
+├── agent/           # Tool protocol, auto-tools, tool bridge
+├── audit/           # Log auditor, update radar, fix rules
+├── avatar/          # Enderman avatar (shelved)
+├── bot/             # Bot registry, GHBot model
+├── builder/         # Build system, design specs, vision verify
+├── chat/            # Chat listener, session management
+├── command/         # Command registry, learning, script upload
+├── config/          # Plugin config
+├── core/            # Capability estimator, stats sampler
+├── edit/            # Block editing, undo manager
+├── location/        # Named locations (shelved)
+├── log/             # WIB logger
+├── review/          # Ghost service, review commands
+├── schematic/       # Schematic codecs (Sponge v2/v3, Classic, Litematica, NBT, mcstructure)
+├── session/         # Session persistence
+├── terrain/         # Terrain scanner, lattice, coord resolver
+└── web/             # Web server, preview registry, auth
 ```
 
-### v0.21.39 / v0.21.40 specific tests (new)
-- **Pasted JSON spec (v0.21.39):** paste `build <entire JSON spec>` → console log must contain
-  `JSON build spec detected in prompt — staging N exact block(s) directly (no AI interpretation).`
-  and the reply `Design: <name> · json-exact · … N op(s)`. No AI re-interpretation.
-- **📎 Upload (v0.21.40):** in `/console`, tap the paperclip → pick `ancient_dragon.json`
-  (141 KB / 1,852 blocks) → expect `📦 Staged from upload: … (1852 blocks)` + 3D viewer link +
-  inline preview image. No paste needed.
-- **👁️ Vision (v0.21.40):** upload a `.png` reference of a build → GHBot sends it to a
-  vision provider (Gemini 2.5 Flash or a multimodal Ollama model) → returns a JSON build spec →
-  staged. Compare the preview against the uploaded image.
+## Key Design Decisions
 
+1. **No Gson** — JSON is hand-rolled (`ai/JsonUtil.java`) to avoid dependency issues
+2. **Hand-rolled NBT** — `schematic/NbtWriter.java` for all schematic formats
+3. **Provider-agnostic tools** — `⟦tool:name args⟧` protocol works with any AI provider
+4. **Session TTL** — 30 min stale, 100 max sessions, evicted every 5 min
+5. **Thread safety** — ConcurrentHashMap for sessions, running builds, undo stacks
+6. **Admin-only** — Non-OP players blocked at dispatch (`CommandBridge.isAdminSender`)
+
+## Workflow
+
+### For AI Agents
+
+**Create solid plan, then execute.** Each phase ships as its own release:
+1. Build → smoke (+pins) → live Paper check → docs → releases/ swap → GitHub Release
+2. Add smoke pins for every fix
+3. Run 3 mutations (G/H/I) that kill exactly their pins, then revert
+4. Bump version, update CHANGELOG.md, commit, tag, push
+
+**Never claim a fix works without smoke OR live check.** Add smoke pin per fix, mutation-validate, live-validate on sandbox-local Paper when possible.
+
+### Build & Test
+
+```bash
+cd gh-bot
+
+# Build
+./gradlew jar
+
+# Smoke suite (642 checks)
+bash tools/setup-build.sh jar
+CP="build/libs/GHBot-*.jar:$(find ~/.gradle/caches -name '*.jar' | grep -v sources | tr '\n' ':')"
+javac -proc:none -nowarn -cp "$CP" -d /tmp/smoke-classes tools/SmokeTest.java
+java -Xmx384M -cp "/tmp/smoke-classes:$CP" dev.ghbot.SmokeTest
+
+# Doc consistency
+bash tools/check-docs.sh 642
+```
+
+### Ship
+
+```bash
+# 1. Bump version in build.gradle.kts
+# 2. Update CHANGELOG.md
+# 3. Run check-docs.sh
+# 4. Commit + tag
+git add -A
+git update-index --chmod=+x gh-bot/gradlew gh-bot/tools/*.sh
+git commit -m "v0.X.Y — description"
+git tag v0.X.Y
+git push origin main --tags
+
+# 5. GitHub Release
+export GITHUB_TOKEN="..."
+bash tools/github-release.sh 0.X.Y "Title" /tmp/notes.md <commit-sha>
+
+# 6. Clean up
+shred -u /tmp/notes.md
+```
+
+## Sandbox Constraints
+
+- **2 GB RAM** (dev sandbox)
+- **Toolchain wiped every turn** — rebuild JDK 21 + Gradle 8.10.2 each session
+- **git remote/identity wiped** — re-add each turn
+- **`/tmp` wiped** — use for ephemeral files only
+
+## Live Paper Testing
+
+```bash
+# Download Paper 1.21.11-132
+curl -o paper.jar "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar"
+
+# Start server
+java -Xms256M -Xmx640M -XX:+UseSerialGC -XX:MaxMetaspaceSize=192M \
+  -XX:MaxDirectMemorySize=64M -Xss512k -jar paper.jar nogui
+
+# Install GHBot
+cp gh-bot/build/libs/GHBot-*.jar plugins/
+
+# Restart and test via web console or rcon
+```
+
+## Current Backlog
+
+### Not Solved (optional, ask owner before starting)
+
+- **Vision for real**: Gemini key OR `ollama pull llava` (or qwen2-vl/minimax), then `build.verify-vision: true`
+- **Pre-existing `schem` command shadowed by DatasetCommands** — design+export doesn't run; use `export` after stage
+- **Sponge v2/v3 both `.schem` overwrite** — pre-existing
+- **`/cmd` async race "(no output)"** for bot commands — documented
+- **AI-guess audit path** only testable on owner's ollama
+- **Deterministic-skeleton stretch** — deferred since v0.25
+
+### Freeze Policy
+
+`BotCommands.SHELVED` includes: avatar, marker, workers, deploy, undeploy, where, save-location, list-locations, delete-locations, teach, dataset, critique, design, image, memory, debuglog, animate, add, editspec, schem download.
+
+Revival = remove from SHELVED + re-add CATALOG + update contract pins. **Do not revive without asking.**
+
+## Documentation
+
+- **[README.md](../README.md)** — User-facing overview
+- **[CHANGELOG.md](../CHANGELOG.md)** — Version history
+- **[COMMANDS.md](COMMANDS.md)** — Complete command reference
+- **[docs/](docs/)** — Deep-dive research and fix write-ups
+- **[tools/](tools/)** — Smoke suite, build scripts, release automation
+
+## Key Files
+
+- `GHBotPlugin.java` — Main plugin class, registers all commands
+- `ChatService.java` — AI chat sessions, stop button, vision
+- `CommandScript.java` — Command-script upload (v0.28.0)
+- `WebStatusServer.java` — Embedded HTTP server, auth, upload route
+- `CapabilityGuide.java` — AI tool knowledge (injected into system prompt)
+- `ToolProtocol.java` — Tool protocol documentation
+- `SmokeTest.java` — 642 headless checks
+
+## Contact
+
+- **Owner**: [SG009](https://github.com/SG009)
+- **Repo**: https://github.com/SG009/GHBot-Plugin
+- **Issues**: https://github.com/SG009/GHBot-Plugin/issues
+
+---
+
+**Last updated**: 2026-09-24 · **Version**: v0.28.0

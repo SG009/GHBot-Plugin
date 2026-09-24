@@ -9,6 +9,7 @@ build/
 *.iml
 .vscode/
 .DS_Store
+Thumbs.db
 
 # ── Runtime / data (never commit live server data) ──
 logs/
@@ -17,12 +18,16 @@ plugins/
 sessions.yml
 learning_dataset.yml
 admin-actions.yml
+updates-notified.yml
 
 # ── Secrets (never commit) ──
 *.key
 *.pem
 .env
 credentials.json
+*.token
 
-# ── Owner evidence (transient test logs) ──
-uploads/*.txt
+# ── Ephemeral / tmp ──
+/tmp/
+*.tmp
+*.bak
